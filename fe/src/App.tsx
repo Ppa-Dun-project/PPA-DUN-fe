@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
-import Home from "./pages/Home";
-import Players from "./pages/Players";
+import Home from "./pages/HomePage";
+import Players from "./pages/PlayersPage";
 
 // 기존의 useState나 로고 import는 이제 필요 없으므로 지워줍니다.
 function App() {
