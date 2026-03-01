@@ -5,8 +5,12 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen bg-black text-white">
       <Navbar />
-      <main className="mx-auto max-w-6xl px-4 py-6">
-        <Outlet />
+
+      {/* ✅ Body는 full width, 내용은 중앙 컨테이너 */}
+      <main className="w-full">
+        <div className="mx-auto w-full max-w-[1400px] px-8 py-6">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

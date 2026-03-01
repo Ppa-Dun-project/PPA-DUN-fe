@@ -7,11 +7,11 @@ import type { NewsItem } from "../types/home";
 import NewsCard from "../features/home/NewsCard";
 import TopPlayerCard from "../features/home/TopPlayerCard";
 import { mockNews, mockTopPlayers } from "../features/home/mock";
+import baseballImg from "../assets/Baseball.jpg";
 
 export default function HomePage() {
   const navigate = useNavigate();
 
-  // MVP: 실제 API 붙기 전까지 UI를 위해 mock + loading 시뮬레이션
   const [newsLoading] = useState(false);
   const [newsError] = useState<string | null>(null);
   const news = useMemo(() => mockNews, []);
@@ -32,13 +32,28 @@ export default function HomePage() {
     <div className="space-y-8">
       {/* Hero */}
       <FadeIn>
-        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-6 md:p-10">
-          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-black p-6 md:p-10">
+          {/* ✅ Background image layer */}
+          <div className="absolute inset-0">
+            <img
+              src={baseballImg}
+              alt="Baseball background"
+              // ✅ 밝기/채도 업 + scale 유지
+              className="h-full w-full object-cover object-right origin-right scale-80 brightness-135 saturate-110"
+            />
+            {/* ✅ Dark overlay (조금 완화) */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-black/20" />
+            {/* ✅ Subtle vignette (조금 완화) */}
+            <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.75)]" />
+          </div>
+
+          {/* ✅ Content layer */}
+          <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs text-white/70">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs text-white/70">
                 BLACK THEME • PPA-Dun
               </div>
-              <h1 className="mt-4 text-3xl font-bold tracking-tight text-white md:text-4xl">
+              <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-white md:text-5xl">
                 Build your roster with explainable ValueScores.
               </h1>
               <p className="mt-3 max-w-2xl text-sm text-white/70 md:text-base">
@@ -49,7 +64,7 @@ export default function HomePage() {
 
             {/* Search */}
             <div className="w-full max-w-xl">
-              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/40 p-2">
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/60 p-2 backdrop-blur">
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -61,37 +76,37 @@ export default function HomePage() {
                 />
                 <button
                   onClick={onSearch}
-                  className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black transition hover:translate-y-[-1px] hover:bg-white/90 active:translate-y-0"
+                    className="rounded-xl bg-black/80 px-4 py-2 text-sm font-extrabold text-white
+                              ring-1 ring-white/25
+                              shadow-[0_10px_30px_rgba(255,255,255,0.12)]
+                              transition
+                              hover:translate-y-[-1px] hover:bg-black/70 hover:ring-white/40
+                              active:translate-y-0"
                 >
                   Search
                 </button>
               </div>
-              <div className="mt-2 text-xs text-white/50">
-                Tip: Press Enter to search.
-              </div>
+              <div className="mt-2 text-xs text-white/60">Tip: Press Enter to search.</div>
             </div>
           </div>
         </section>
       </FadeIn>
 
       {/* Grid: News + Top Players */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Latest News */}
-        <FadeIn className="md:col-span-2" delayMs={60}>
+        <FadeIn className="lg:col-span-2" delayMs={60}>
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-white">Latest News</h2>
+                <h2 className="text-lg font-bold text-white">Latest News</h2>
                 <p className="mt-1 text-sm text-white/60">
                   Guest users can read news anytime.
                 </p>
               </div>
               <button
-                className="text-xs text-white/60 hover:text-white transition"
-                onClick={() => {
-                  // 나중에 실제 뉴스 페이지가 생기면 이동
-                  // navigate("/news");
-                }}
+                className="text-xs font-bold text-white/60 hover:text-white transition"
+                onClick={() => {}}
               >
                 View all →
               </button>
@@ -129,10 +144,10 @@ export default function HomePage() {
           </section>
         </FadeIn>
 
-        {/* Top Players (optional but included) */}
-        <FadeIn className="md:col-span-1" delayMs={120}>
+        {/* Top Players */}
+        <FadeIn className="lg:col-span-1" delayMs={120}>
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h2 className="text-lg font-semibold text-white">Top Players</h2>
+            <h2 className="text-lg font-bold text-white">Top Players</h2>
             <p className="mt-1 text-sm text-white/60">
               Highest ValueScore right now.
             </p>
@@ -170,23 +185,21 @@ export default function HomePage() {
                 href={selected.url}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-xl border border-white/15 px-4 py-2 text-sm text-white/90 hover:bg-white/5 transition"
+                className="rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-white/90 hover:bg-white/5 transition"
               >
                 Open link
               </a>
             )}
             <button
               onClick={() => setSelected(null)}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90 transition"
+              className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-black hover:bg-white/90 transition"
             >
               Close
             </button>
           </>
         }
       >
-        <p className="text-sm leading-6">
-          {selected?.summary}
-        </p>
+        <p className="text-sm leading-6">{selected?.summary}</p>
         <div className="mt-4 text-xs text-white/50">
           Published: {selected ? new Date(selected.publishedAt).toLocaleString() : ""}
         </div>
