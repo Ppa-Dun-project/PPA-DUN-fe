@@ -18,12 +18,20 @@ function pill(active: boolean) {
   ].join(" ");
 }
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 export default function DraftSetupCard() {
   const navigate = useNavigate();
   const authed = isAuthed();
 
   const [myTeam, setMyTeam] = useState<string>("");
-  const [oppTeam, setOppTeam] = useState<string>("");
+
+  // ✅ New: opponents count + dynamic names
+  const [opponentsCount, setOpponentsCount] = useState<number>(0); // 0 ~ 12
+  const [opponentTeams, setOpponentTeams] = useState<string[]>([]);
+
   const [leagueType, setLeagueType] = useState<LeagueType>("standard");
 
   // custom values
@@ -41,10 +49,32 @@ export default function DraftSetupCard() {
     return presets[leagueType];
   }, [leagueType, customBudget, customPlayers]);
 
+  const applyOpponentsCount = (next: number) => {
+    const c = clamp(next, 0, 12);
+    setOpponentsCount(c);
+
+    setOpponentTeams((prev) => {
+      const sliced = prev.slice(0, c);
+      if (sliced.length < c) {
+        return [...sliced, ...Array(c - sliced.length).fill("")];
+      }
+      return sliced;
+    });
+  };
+
+  const updateOpponentName = (idx: number, value: string) => {
+    setOpponentTeams((prev) => prev.map((v, i) => (i === idx ? value : v)));
+  };
+
   const onStartDraft = () => {
+    const trimmedOppNames = opponentTeams.map((n) => n.trim());
+
+    // MVP: draft 설정 값을 로컬에 저장
     const draftConfig = {
       myTeamName: myTeam.trim(),
-      oppTeamName: oppTeam.trim(),
+      opponentsCount,
+      oppTeamName: trimmedOppNames[0] ?? "", // ✅ backward-compatible (first opponent)
+      oppTeamNames: trimmedOppNames, // ✅ new: all opponents
       leagueType,
       budget: computed.budget,
       rosterPlayers: computed.players,
@@ -55,6 +85,7 @@ export default function DraftSetupCard() {
 
     const target = "/players";
 
+    // 게스트면 로그인 유도
     if (!authed) {
       const redirect = encodeURIComponent(target);
       navigate(`/login?redirect=${redirect}`, { replace: true });
@@ -73,7 +104,6 @@ export default function DraftSetupCard() {
           <img src={logo} alt="Logo" className="h-full w-full object-cover" />
         </div>
 
-        {/* Title */}
         <div className="text-left">
           <div className="text-base font-black leading-tight text-white">Draft Setup</div>
         </div>
@@ -81,6 +111,7 @@ export default function DraftSetupCard() {
 
       {/* Form */}
       <div className="mt-5 space-y-4">
+        {/* My team */}
         <div>
           <label className="text-xs font-extrabold text-white/70">My team name</label>
           <input
@@ -91,17 +122,65 @@ export default function DraftSetupCard() {
           />
         </div>
 
+        {/* ✅ Opponents count + / - */}
         <div>
           <label className="text-xs font-extrabold text-white/70">
-            Opponent team name <span className="font-semibold text-white/40">(optional)</span>
+            Participants (opponents){" "}
+            <span className="text-white/40">(max 12)</span>
           </label>
-          <input
-            value={oppTeam}
-            onChange={(e) => setOppTeam(e.target.value)}
-            placeholder="e.g., Team B"
-            className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/25"
-          />
+
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => applyOpponentsCount(opponentsCount - 1)}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-black/30 text-white/80 hover:bg-white/5"
+              aria-label="Decrease opponents"
+            >
+              −
+            </button>
+
+            <input
+              type="number"
+              min={0}
+              max={12}
+              value={opponentsCount}
+              onChange={(e) => applyOpponentsCount(Number(e.target.value || 0))}
+              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-white/25"
+            />
+
+            <button
+              type="button"
+              onClick={() => applyOpponentsCount(opponentsCount + 1)}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-black/30 text-white/80 hover:bg-white/5"
+              aria-label="Increase opponents"
+            >
+              +
+            </button>
+          </div>
+
+          <div className="mt-1 text-xs text-white/50">
+            Enter how many opponents you&apos;ll draft with. We&apos;ll generate name fields below.
+          </div>
         </div>
+
+        {/* ✅ Dynamic opponent team name fields */}
+        {opponentsCount > 0 && (
+          <div className="space-y-3">
+            {opponentTeams.map((name, idx) => (
+              <div key={idx}>
+                <label className="text-xs font-extrabold text-white/70">
+                  Opponent team {idx + 1} name
+                </label>
+                <input
+                  value={name}
+                  onChange={(e) => updateOpponentName(idx, e.target.value)}
+                  placeholder={`e.g., Team ${String.fromCharCode(66 + idx)}`} // Team B, C, D...
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/25"
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* League type */}
         <div>
