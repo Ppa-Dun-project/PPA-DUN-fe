@@ -28,7 +28,7 @@ jobs:
               "fields": [
                 {"name": "Branch", "value": "'"${{ github.ref_name }}"'", "inline": true},
                 {"name": "Commit", "value": "'"${GITHUB_SHA::7}"'", "inline": true},
-                {"name": "Author", "value": "'"${{ github.actor }}"'", "inline": true},
+                {"name": "Author", "value": "'"${{ github.actor }}"'", "inline": true}
               ],
               "timestamp": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"
             }]
