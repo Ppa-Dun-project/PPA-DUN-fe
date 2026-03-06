@@ -19,7 +19,7 @@ function getParam(params: URLSearchParams, key: string, fallback: string) {
   return params.get(key) ?? fallback;
 }
 
-export default function PlayersPage() {
+export default function DraftPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
 
@@ -30,7 +30,7 @@ export default function PlayersPage() {
   const page = Number(getParam(params, "page", "1")) || 1;
   const pageSize = 8;
 
-  // local UI state (optional): for instant typing before submit
+  // local UI state: typing buffer
   const [draftQuery, setDraftQuery] = useState(query);
 
   const onSubmitSearch = () => {
@@ -65,11 +65,14 @@ export default function PlayersPage() {
     setParams(new URLSearchParams(), { replace: true });
   };
 
-  // MVP: mock loading simulation switch (필요하면 true로)
+  // MVP: mock loading simulation switch (enable if needed)
   const loading = false;
+  // TODO (Backend/API): replace with real error handling from API responses
   const error: string | null = null;
 
   const filtered = useMemo(() => {
+    // TODO (Backend/API): replace mockPlayers with API results
+    // e.g. GET /api/players?query=&position=&sort=&page=
     const f = filterPlayers(mockPlayers, query, position);
     return sortPlayers(f, sort);
   }, [query, position, sort]);
@@ -79,7 +82,6 @@ export default function PlayersPage() {
   }, [filtered, page]);
 
   const topPlayers = useMemo(() => {
-    // top players always by value desc
     return sortPlayers(mockPlayers, "value_desc");
   }, []);
 
@@ -88,13 +90,13 @@ export default function PlayersPage() {
       <FadeIn>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-3xl font-black text-white">Players</h1>
+            <h1 className="text-3xl font-black text-white">Draft</h1>
             <p className="mt-2 text-sm text-white/60">
-              Search, filter, and sort players. ValueScore is always visible.
+              Search and compare players for your auction draft. ValueScore is always visible.
             </p>
           </div>
 
-          {/* draft badge on top right */}
+          {/* Draft config badge (read from localStorage draft setup) */}
           <div className="lg:w-[360px]">
             <DraftSummaryBadge />
           </div>
@@ -127,6 +129,7 @@ export default function PlayersPage() {
                   Click a player to view details.
                 </div>
               </div>
+
               <div className="text-xs text-white/50">
                 Showing {items.length} / {total}
               </div>
@@ -143,7 +146,7 @@ export default function PlayersPage() {
 
               {!loading && error && (
                 <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-                  Failed to load players: {error}
+                  Failed to load draft players: {error}
                 </div>
               )}
 
@@ -156,7 +159,11 @@ export default function PlayersPage() {
               {!loading &&
                 !error &&
                 items.map((p) => (
-                  <PlayerCard key={p.id} player={p} onClick={() => navigate(`/players/${p.id}`)} />
+                  <PlayerCard
+                    key={p.id}
+                    player={p}
+                    onClick={() => navigate(`/draft/${p.id}`)} // ✅ /players/:id → /draft/:id
+                  />
                 ))}
             </div>
 

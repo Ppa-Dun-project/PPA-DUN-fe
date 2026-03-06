@@ -1,9 +1,9 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import HomePage from "./pages/HomePage";
-import PlayersPage from "./pages/PlayersPage";
+import DraftPage from "./pages/DraftPage";
 import PlayerDetailPage from "./pages/PlayerDetailPage";
 import LoginPage from "./pages/LoginPage";
 import MyTeamPage from "./pages/MyTeamPage";
@@ -16,12 +16,17 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
 
-      { path: "players", element: <PlayersPage /> },
-      { path: "players/:id", element: <PlayerDetailPage /> },
+      // ✅ Draft is the main list page now
+      { path: "draft", element: <DraftPage /> },
+      { path: "draft/:id", element: <PlayerDetailPage /> },
+
+      // ✅ Backward compatibility (so old links still work)
+      { path: "players", element: <Navigate to="/draft" replace /> },
+      { path: "players/:id", element: <Navigate to="/draft/:id" replace /> },
 
       { path: "login", element: <LoginPage /> },
 
-      // Protected group
+      // Protected
       {
         element: <ProtectedRoute />,
         children: [

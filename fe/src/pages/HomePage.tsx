@@ -10,12 +10,17 @@ import NewsCard from "../features/home/NewsCard";
 import { mockNews } from "../features/home/mock";
 
 import DraftSetupCard from "../features/home/DraftSetupCard";
+import SignInCard from "../features/home/SignInCard";
 
 import baseballImg from "../assets/Baseball.jpg";
+import { useAuth } from "../lib/auth";
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const authed = useAuth(); // ✅ reactive auth (updates immediately on login/logout)
 
+  // TODO (Backend/API): replace mockNews with API call (React Query recommended)
+  // Example: GET /api/news?limit=3
   const [newsLoading] = useState(false);
   const [newsError] = useState<string | null>(null);
   const news = useMemo(() => mockNews, []);
@@ -26,7 +31,8 @@ export default function HomePage() {
   const onSearch = () => {
     const q = query.trim();
     if (!q) return;
-    navigate(`/players?query=${encodeURIComponent(q)}`);
+    // ✅ Draft is the new list page
+    navigate(`/draft?query=${encodeURIComponent(q)}`);
   };
 
   return (
@@ -34,7 +40,6 @@ export default function HomePage() {
       {/* Hero */}
       <FadeIn>
         <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-black p-6 md:p-10">
-          {/* Background image layer */}
           <div className="absolute inset-0">
             <img
               src={baseballImg}
@@ -45,11 +50,10 @@ export default function HomePage() {
             <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.75)]" />
           </div>
 
-          {/* Content layer */}
           <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs text-white/70">
-              • PPA-Dun Project - TEAM BLACK
+                PPA-Dun Project • TEAM BLACK
               </div>
               <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-white md:text-5xl">
                 Build your roster with the Best Players.
@@ -75,9 +79,7 @@ export default function HomePage() {
                   onClick={onSearch}
                   className="rounded-xl bg-black/80 px-4 py-2 text-sm font-extrabold text-white
                              ring-1 ring-white/25
-                             shadow-[0_10px_30px_rgba(255,255,255,0.12)]
-                             transition
-                             hover:translate-y-[-1px] hover:bg-black/70 hover:ring-white/40
+                             transition hover:translate-y-[-1px] hover:bg-black/70 hover:ring-white/40
                              active:translate-y-0"
                 >
                   Search
@@ -89,7 +91,7 @@ export default function HomePage() {
         </section>
       </FadeIn>
 
-      {/* Grid: News + Draft Setup */}
+      {/* Grid: News + Right panel */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Latest News */}
         <FadeIn className="lg:col-span-2" delayMs={60}>
@@ -101,9 +103,12 @@ export default function HomePage() {
                   Guest users can read news anytime.
                 </p>
               </div>
+
               <button
                 className="text-xs font-bold text-white/60 hover:text-white transition"
-                onClick={() => {}}
+                onClick={() => {
+                  // TODO: If you add a dedicated news page later, navigate("/news")
+                }}
               >
                 View all →
               </button>
@@ -130,16 +135,18 @@ export default function HomePage() {
                 </div>
               )}
 
-              {!newsLoading && !newsError && news.map((item) => (
-                <NewsCard key={item.id} item={item} onClick={() => setSelected(item)} />
-              ))}
+              {!newsLoading &&
+                !newsError &&
+                news.map((item) => (
+                  <NewsCard key={item.id} item={item} onClick={() => setSelected(item)} />
+                ))}
             </div>
           </section>
         </FadeIn>
 
-        {/* Draft Setup (replaces Top Players box) */}
+        {/* Right panel: guest => SignInCard, authed => DraftSetupCard */}
         <FadeIn className="lg:col-span-1" delayMs={120}>
-          <DraftSetupCard />
+          {authed ? <DraftSetupCard /> : <SignInCard />}
         </FadeIn>
       </div>
 
