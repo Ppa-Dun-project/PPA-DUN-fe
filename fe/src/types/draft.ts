@@ -31,6 +31,8 @@ export type DraftPick = {
 export type DraftConfigLocal = {
   myTeamName?: string;
   oppTeamName?: string;
+  oppTeamNames?: string[];
+  opponentsCount?: number;
   leagueType?: string;
   budget?: number;
   rosterPlayers?: number;
@@ -56,7 +58,5 @@ export type DraftPositionFilter =
   | "2B"
   | "3B"
   | "SS"
-  | "LF"
-  | "CF"
-  | "RF"
-  | "DH";
+  | "OF"
+  | "UTIL";

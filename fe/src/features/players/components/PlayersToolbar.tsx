@@ -1,6 +1,4 @@
-import type { PlayerSort } from "../../../types/player";
-import type { PositionFilter } from "../mock";
-import { positionsForFilter } from "../mock";
+import { positionsForFilter, type PlayerSort, type PositionFilter } from "../../../types/player";
 
 type Props = {
   query: string;

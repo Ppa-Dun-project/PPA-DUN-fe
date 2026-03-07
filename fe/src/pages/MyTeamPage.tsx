@@ -1,21 +1,52 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import FadeIn from "../components/ui/FadeIn";
 import Skeleton from "../components/ui/Skeleton";
 import Dropdown from "../components/ui/Dropdown";
 
-import { mockMyTeamPlayers, myTeamPositions, type MyTeamPosFilter } from "../features/myteam/mock";
-import type { MyTeamPlayer } from "../types/myteam";
-import {
-  computeRemainingBudget,
-  filterMyTeam,
-  formatAvg,
-  sortMyTeam,
-  type MyTeamSort,
-  teamBadgeClass,
-  valueScoreClass,
-} from "../features/myteam/utils";
+import type { MyTeamPlayer, MyTeamPosFilter, MyTeamSort } from "../types/myteam";
+import { formatAvg, teamBadgeClass, valueScoreClass } from "../features/myteam/utils";
+import { apiGet } from "../lib/api";
 
-const SORT_OPTIONS: { value: MyTeamSort; label: string }[] = [
+type MyTeamPlayersResponse = {
+  items: MyTeamPlayer[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  totalBudget: number;
+  spentBudget: number;
+  remainingBudget: number;
+};
+
+type MyTeamPositionsResponse = {
+  positions: MyTeamPosFilter[];
+};
+
+type MyTeamSortOption = {
+  value: MyTeamSort;
+  label: string;
+};
+
+type MyTeamSortOptionsResponse = {
+  sorts: { value: string; label: string }[];
+};
+
+const DEFAULT_POSITIONS: MyTeamPosFilter[] = [
+  "ALL",
+  "C",
+  "1B",
+  "2B",
+  "3B",
+  "SS",
+  "LF",
+  "RF",
+  "CF",
+  "DH",
+  "SP",
+  "RP",
+];
+
+const DEFAULT_SORT_OPTIONS: MyTeamSortOption[] = [
   { value: "score_desc", label: "By Score" },
   { value: "cost_desc", label: "By Value $" },
   { value: "avg_desc", label: "By AVG" },
@@ -24,26 +55,120 @@ const SORT_OPTIONS: { value: MyTeamSort; label: string }[] = [
   { value: "sb_desc", label: "By SB" },
 ];
 
+function cleanSortLabel(label: string) {
+  return label.replace(/\s*\((asc|desc)\)\s*/gi, "").trim();
+}
+
+function normalizeSortOptions(raw: { value: string; label: string }[]): MyTeamSortOption[] {
+  const preferred: MyTeamSort[] = [
+    "score_desc",
+    "cost_desc",
+    "avg_desc",
+    "hr_desc",
+    "rbi_desc",
+    "sb_desc",
+  ];
+
+  const byValue = new Map(raw.map((option) => [option.value, option]));
+  const seenLabels = new Set<string>();
+  const normalized: MyTeamSortOption[] = [];
+
+  for (const value of preferred) {
+    const option = byValue.get(value);
+    if (!option) continue;
+
+    const label = cleanSortLabel(option.label);
+    const key = label.toLowerCase();
+    if (seenLabels.has(key)) continue;
+
+    seenLabels.add(key);
+    normalized.push({ value, label });
+  }
+
+  return normalized.length > 0 ? normalized : DEFAULT_SORT_OPTIONS;
+}
+
 export default function MyTeamPage() {
-  // TODO(백엔드/DB): "내가 영입한 선수 목록"은 서버에서 받아와야 함
-  // 예) GET /api/my-team/players  (userId 기반)
-  const [loading] = useState(false);
-  const [error] = useState<string | null>(null);
-  const players = useMemo<MyTeamPlayer[]>(() => mockMyTeamPlayers, []);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [players, setPlayers] = useState<MyTeamPlayer[]>([]);
 
   const [query, setQuery] = useState("");
   const [pos, setPos] = useState<MyTeamPosFilter>("ALL");
   const [sort, setSort] = useState<MyTeamSort>("score_desc");
 
-  // TODO(백엔드/DB): 총 예산도 리그 설정/드래프트 설정에서 서버가 내려줘야 함
-  // MVP에서는 임시로 260 고정
-  const TOTAL_BUDGET = 260;
-  const remaining = useMemo(() => computeRemainingBudget(TOTAL_BUDGET, players), [players]);
+  const [positions, setPositions] = useState<MyTeamPosFilter[]>(DEFAULT_POSITIONS);
+  const [sortOptions, setSortOptions] = useState<MyTeamSortOption[]>(DEFAULT_SORT_OPTIONS);
+  const [remainingBudget, setRemainingBudget] = useState(260);
 
-  const filtered = useMemo(() => {
-    const f = filterMyTeam(players, query, pos);
-    return sortMyTeam(f, sort);
-  }, [players, query, pos, sort]);
+  useEffect(() => {
+    const controller = new AbortController();
+
+    Promise.all([
+      apiGet<MyTeamPositionsResponse>("/api/my-team/filters/positions", undefined, controller.signal),
+      apiGet<MyTeamSortOptionsResponse>("/api/my-team/filters/sorts", undefined, controller.signal),
+    ])
+      .then(([positionData, sortData]) => {
+        if (controller.signal.aborted) return;
+
+        if (positionData.positions.length > 0) {
+          setPositions(positionData.positions);
+          setPos((prev) => (positionData.positions.includes(prev) ? prev : "ALL"));
+        }
+
+        const normalizedSorts = normalizeSortOptions(sortData.sorts);
+        setSortOptions(normalizedSorts);
+        setSort((prev) =>
+          normalizedSorts.some((option) => option.value === prev)
+            ? prev
+            : normalizedSorts[0]?.value ?? "score_desc"
+        );
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error(err);
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
+
+    apiGet<MyTeamPlayersResponse>(
+      "/api/my-team/players",
+      {
+        query: query.trim() || undefined,
+        position: pos,
+        sort,
+        page: 1,
+        limit: 50,
+      },
+      controller.signal
+    )
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setPlayers(data.items);
+        setRemainingBudget(data.remainingBudget);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error(err);
+        setPlayers([]);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [query, pos, sort]);
 
   return (
     <div className="space-y-6">
@@ -54,10 +179,9 @@ export default function MyTeamPage() {
             <h1 className="mt-1 text-3xl font-black text-white">My Team</h1>
           </div>
 
-          {/* ✅ Budget: 가로 길게(한 줄) */}
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-6 py-4">
             <div className="text-sm font-extrabold text-white/70">Budget</div>
-            <div className="text-xl font-black text-emerald-400">${remaining}</div>
+            <div className="text-xl font-black text-emerald-400">${remainingBudget}</div>
           </div>
         </div>
       </FadeIn>
@@ -65,7 +189,6 @@ export default function MyTeamPage() {
       <FadeIn delayMs={60} className="relative z-40">
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            {/* Search */}
             <div className="w-full lg:max-w-md">
               <div className="text-xs font-extrabold text-white/70">Search</div>
               <input
@@ -76,25 +199,23 @@ export default function MyTeamPage() {
               />
             </div>
 
-            {/* ✅ Animated Dropdown */}
             <div className="w-full lg:w-72">
               <Dropdown<MyTeamSort>
                 label="Sort"
                 value={sort}
-                options={SORT_OPTIONS}
+                options={sortOptions}
                 onChange={setSort}
               />
             </div>
           </div>
 
-          {/* Position chips */}
           <div className="mt-4 flex flex-wrap gap-2">
-            {myTeamPositions.map((p) => {
-              const active = pos === p;
+            {positions.map((position) => {
+              const active = pos === position;
               return (
                 <button
-                  key={p}
-                  onClick={() => setPos(p)}
+                  key={position}
+                  onClick={() => setPos(position)}
                   className={[
                     "rounded-full px-3 py-1 text-xs font-extrabold transition",
                     active
@@ -102,13 +223,12 @@ export default function MyTeamPage() {
                       : "border border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
                   ].join(" ")}
                 >
-                  {p}
+                  {position}
                 </button>
               );
             })}
           </div>
 
-          {/* Table */}
           <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
             <div className="grid grid-cols-[1.8fr_.6fr_.6fr_.7fr_.7fr_.7fr_.7fr_.7fr_.9fr] bg-black/40 px-4 py-3 text-xs font-extrabold text-white/60">
               <div>Player</div>
@@ -133,57 +253,50 @@ export default function MyTeamPage() {
                 <div className="p-4 text-sm text-red-200">Failed to load my team: {error}</div>
               )}
 
-              {!loading && !error && filtered.length === 0 && (
+              {!loading && !error && players.length === 0 && (
                 <div className="p-4 text-sm text-white/70">No players found.</div>
               )}
 
               {!loading &&
                 !error &&
-                filtered.map((p) => (
+                players.map((player) => (
                   <button
-                    key={p.id}
-                    // TODO(프론트 상호작용): 클릭하면 선수 정보 popup(modal) 띄우기
+                    key={player.id}
                     onClick={() => {}}
-                    className="grid w-full grid-cols-[1.8fr_.6fr_.6fr_.7fr_.7fr_.7fr_.7fr_.7fr_.9fr] items-center px-4 py-3 text-left text-sm text-white/85 hover:bg-white/5 transition"
+                    className="grid w-full grid-cols-[1.8fr_.6fr_.6fr_.7fr_.7fr_.7fr_.7fr_.7fr_.9fr] items-center px-4 py-3 text-left text-sm text-white/85 transition hover:bg-white/5"
                   >
-                    <div className="font-semibold text-white">{p.name}</div>
+                    <div className="font-semibold text-white">{player.name}</div>
 
                     <div>
                       <span className="rounded-lg bg-white/10 px-2 py-1 text-xs font-extrabold text-white/80">
-                        {p.pos}
+                        {player.pos}
                       </span>
                     </div>
 
-                    <div className="font-semibold text-white/80">{p.cost}</div>
+                    <div className="font-semibold text-white/80">{player.cost}</div>
 
-                    {/* ✅ Team pastel badge */}
                     <div>
                       <span
                         className={[
                           "inline-flex items-center rounded-lg border px-2 py-1 text-xs font-extrabold",
-                          teamBadgeClass(p.team),
+                          teamBadgeClass(player.team),
                         ].join(" ")}
                       >
-                        {p.team}
+                        {player.team}
                       </span>
                     </div>
 
-                    <div className="text-white/70">{formatAvg(p.avg)}</div>
-                    <div className="text-amber-300 font-semibold">{p.hr || "—"}</div>
-                    <div className="text-white/70">{p.rbi || "—"}</div>
-                    <div className="text-amber-300 font-semibold">{p.sb || "—"}</div>
+                    <div className="text-white/70">{formatAvg(player.avg)}</div>
+                    <div className="font-semibold text-amber-300">{player.hr ?? "-"}</div>
+                    <div className="text-white/70">{player.rbi ?? "-"}</div>
+                    <div className="font-semibold text-amber-300">{player.sb ?? "-"}</div>
 
-                    {/* ✅ Value highlight when >= 10 */}
-                    <div className={`text-right text-sm font-black ${valueScoreClass(p.ppaValue)}`}>
-                      {p.ppaValue.toFixed(1)}
+                    <div className={`text-right text-sm font-black ${valueScoreClass(player.ppaValue)}`}>
+                      {player.ppaValue.toFixed(1)}
                     </div>
                   </button>
                 ))}
             </div>
-          </div>
-
-          <div className="mt-3 text-xs text-white/45">
-            TODO(백엔드): 선수 스탯,가격 값 서버에서 넣어주기
           </div>
         </section>
       </FadeIn>

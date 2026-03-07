@@ -14,15 +14,20 @@ export function readDraftConfig(): DraftConfigLocal {
       return {
         myTeamName: "My Team",
         oppTeamName: "Team A",
+        oppTeamNames: [],
+        opponentsCount: 5,
         leagueType: "standard",
         budget: 260,
         rosterPlayers: 12,
       };
     }
+
     const parsed = JSON.parse(raw) as DraftConfigLocal;
     return {
       myTeamName: parsed.myTeamName || "My Team",
       oppTeamName: parsed.oppTeamName || "Team A",
+      oppTeamNames: parsed.oppTeamNames ?? [],
+      opponentsCount: parsed.opponentsCount ?? 5,
       leagueType: parsed.leagueType || "standard",
       budget: parsed.budget ?? 260,
       rosterPlayers: parsed.rosterPlayers ?? 12,
@@ -32,6 +37,8 @@ export function readDraftConfig(): DraftConfigLocal {
     return {
       myTeamName: "My Team",
       oppTeamName: "Team A",
+      oppTeamNames: [],
+      opponentsCount: 5,
       leagueType: "standard",
       budget: 260,
       rosterPlayers: 12,
@@ -44,9 +51,11 @@ export function clampRosterSize(n?: number) {
   return Math.min(Math.max(value, 8), 25);
 }
 
-// 포지션이 보이는 슬롯 템플릿
 export function buildSlotTemplate(count: number): string[] {
   const base = [
+    "SP",
+    "SP",
+    "RP",
     "SP",
     "RP",
     "C",
@@ -54,14 +63,11 @@ export function buildSlotTemplate(count: number): string[] {
     "2B",
     "3B",
     "SS",
-    "LF",
-    "CF",
-    "RF",
-    "DH",
+    "OF",
+    "OF",
+    "OF",
     "UTIL",
     "UTIL",
-    "BN",
-    "BN",
     "BN",
     "BN",
     "BN",
@@ -83,14 +89,11 @@ export function filterDraftPlayers(
 ) {
   const q = query.trim().toLowerCase();
 
-  return players.filter((p) => {
+  return players.filter((player) => {
     const matchesQuery =
-      !q ||
-      p.name.toLowerCase().includes(q) ||
-      p.team.toLowerCase().includes(q);
+      !q || player.name.toLowerCase().includes(q) || player.team.toLowerCase().includes(q);
 
-    const matchesPos =
-      position === "ALL" ? true : p.positions.includes(position);
+    const matchesPos = position === "ALL" ? true : player.positions.includes(position);
 
     return matchesQuery && matchesPos;
   });
@@ -131,12 +134,36 @@ export function teamAccentClass(team: DraftTeam, index: number) {
   }
 
   const palette = [
-    { header: "border-rose-400/30 bg-rose-500/10 text-rose-200", slot: "border-rose-400/20 bg-rose-500/8", text: "text-rose-200" },
-    { header: "border-amber-400/30 bg-amber-500/10 text-amber-200", slot: "border-amber-400/20 bg-amber-500/8", text: "text-amber-200" },
-    { header: "border-violet-400/30 bg-violet-500/10 text-violet-200", slot: "border-violet-400/20 bg-violet-500/8", text: "text-violet-200" },
-    { header: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200", slot: "border-emerald-400/20 bg-emerald-500/8", text: "text-emerald-200" },
-    { header: "border-cyan-400/30 bg-cyan-500/10 text-cyan-200", slot: "border-cyan-400/20 bg-cyan-500/8", text: "text-cyan-200" },
-    { header: "border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200", slot: "border-fuchsia-400/20 bg-fuchsia-500/8", text: "text-fuchsia-200" },
+    {
+      header: "border-rose-400/30 bg-rose-500/10 text-rose-200",
+      slot: "border-rose-400/20 bg-rose-500/8",
+      text: "text-rose-200",
+    },
+    {
+      header: "border-amber-400/30 bg-amber-500/10 text-amber-200",
+      slot: "border-amber-400/20 bg-amber-500/8",
+      text: "text-amber-200",
+    },
+    {
+      header: "border-violet-400/30 bg-violet-500/10 text-violet-200",
+      slot: "border-violet-400/20 bg-violet-500/8",
+      text: "text-violet-200",
+    },
+    {
+      header: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200",
+      slot: "border-emerald-400/20 bg-emerald-500/8",
+      text: "text-emerald-200",
+    },
+    {
+      header: "border-cyan-400/30 bg-cyan-500/10 text-cyan-200",
+      slot: "border-cyan-400/20 bg-cyan-500/8",
+      text: "text-cyan-200",
+    },
+    {
+      header: "border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200",
+      slot: "border-fuchsia-400/20 bg-fuchsia-500/8",
+      text: "text-fuchsia-200",
+    },
   ];
 
   return palette[index % palette.length];
@@ -160,11 +187,12 @@ export function mlbTeamBadgeClass(team: string): string {
     CIN: "bg-red-500/15 text-red-200 border-red-400/25",
     SEA: "bg-teal-500/15 text-teal-200 border-teal-400/25",
   };
+
   return map[t] ?? "bg-white/10 text-white/80 border-white/15";
 }
 
 export function formatAvg(avg: number | null) {
-  if (!avg) return "—";
+  if (!avg) return "-";
   return avg.toFixed(3).replace("0.", ".");
 }
 
@@ -185,23 +213,20 @@ export function findAvailableSlotIndex(
   picks: DraftPick[]
 ) {
   const occupied = new Set(
-    picks.filter((p) => p.draftedByTeamId === teamId).map((p) => p.slotIndex)
+    picks.filter((pick) => pick.draftedByTeamId === teamId).map((pick) => pick.slotIndex)
   );
 
-  // 1) 정확한 포지션 슬롯
-  for (let i = 0; i < slotTemplate.length; i++) {
+  for (let i = 0; i < slotTemplate.length; i += 1) {
     if (occupied.has(i)) continue;
     if (slotTemplate[i] === desiredPos) return i;
   }
 
-  // 2) UTIL
-  for (let i = 0; i < slotTemplate.length; i++) {
+  for (let i = 0; i < slotTemplate.length; i += 1) {
     if (occupied.has(i)) continue;
     if (slotTemplate[i] === "UTIL") return i;
   }
 
-  // 3) BN
-  for (let i = 0; i < slotTemplate.length; i++) {
+  for (let i = 0; i < slotTemplate.length; i += 1) {
     if (occupied.has(i)) continue;
     if (slotTemplate[i] === "BN") return i;
   }
@@ -215,33 +240,34 @@ export function getAllowedPositionsForPlayer(
   slotTemplate: string[],
   picks: DraftPick[]
 ) {
-  return player.positions.filter((pos) => findAvailableSlotIndex(teamId, pos, slotTemplate, picks) !== -1);
+  return player.positions.filter(
+    (pos) => findAvailableSlotIndex(teamId, pos, slotTemplate, picks) !== -1
+  );
 }
 
 export function calculateRemainingBudget(budget: number, myTeamId: string, picks: DraftPick[]) {
   const spent = picks
-    .filter((p) => p.draftedByTeamId === myTeamId && typeof p.bid === "number")
-    .reduce((sum, p) => sum + (p.bid ?? 0), 0);
+    .filter((pick) => pick.draftedByTeamId === myTeamId && typeof pick.bid === "number")
+    .reduce((sum, pick) => sum + (pick.bid ?? 0), 0);
   return Math.max(0, budget - spent);
 }
 
 export function calculateCurrentRound(teamCount: number, rosterSlots: number, picks: DraftPick[]) {
   const totalPicks = picks.length;
-  const round = Math.min(rosterSlots, Math.floor(totalPicks / teamCount) + 1);
-  return round;
+  return Math.min(rosterSlots, Math.floor(totalPicks / teamCount) + 1);
 }
 
 export function getPlayerDraftStatus(playerId: string, picks: DraftPick[], teams: DraftTeam[]) {
-  const hit = picks.find((p) => p.playerId === playerId);
+  const hit = picks.find((pick) => pick.playerId === playerId);
   if (!hit) {
     return { kind: "available" as const };
   }
 
-  const team = teams.find((t) => t.id === hit.draftedByTeamId);
+  const team = teams.find((item) => item.id === hit.draftedByTeamId);
   if (hit.type === "mine") {
     return {
       kind: "mine" as const,
-      label: `✓ My Pick - $${hit.bid ?? "?"}`,
+      label: `My Pick - $${hit.bid ?? "?"}`,
       teamName: team?.name ?? "My Team",
     };
   }
@@ -253,33 +279,7 @@ export function getPlayerDraftStatus(playerId: string, picks: DraftPick[], teams
   };
 }
 
-export function seedInitialPicks(
-  teams: DraftTeam[],
-  slotTemplate: string[]
-): DraftPick[] {
-  const seed = [
-    { playerId: "p1", teamId: teams[0]?.id, bid: 25, slotPos: "DH", type: "mine" as const },
-    { playerId: "p2", teamId: teams[0]?.id, bid: 12, slotPos: "RF", type: "mine" as const },
-    { playerId: "p3", teamId: teams[1]?.id, bid: 75, slotPos: "LF", type: "taken" as const },
-    { playerId: "p6", teamId: teams[2]?.id, bid: 24, slotPos: "SS", type: "taken" as const },
-  ];
-
-  const picks: DraftPick[] = [];
-
-  for (const s of seed) {
-    if (!s.teamId) continue;
-    const slotIndex = findAvailableSlotIndex(s.teamId, s.slotPos, slotTemplate, picks);
-    if (slotIndex === -1) continue;
-
-    picks.push({
-      playerId: s.playerId,
-      draftedByTeamId: s.teamId,
-      slotIndex,
-      slotPos: s.slotPos,
-      bid: s.bid,
-      type: s.type,
-    });
-  }
-
-  return picks;
+// Deprecated: frontend no longer seeds local mock picks. Kept as safe empty fallback.
+export function seedInitialPicks(): DraftPick[] {
+  return [];
 }

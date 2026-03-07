@@ -1,5 +1,4 @@
-import type { Player, PlayerSort } from "../../types/player";
-import type { PositionFilter } from "./mock";
+import type { Player, PlayerSort, PositionFilter } from "../../types/player";
 
 export function filterPlayers(players: Player[], query: string, position: PositionFilter): Player[] {
   const q = query.trim().toLowerCase();

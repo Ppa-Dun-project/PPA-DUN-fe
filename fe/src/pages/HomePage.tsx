@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import FadeIn from "../components/ui/FadeIn";
@@ -7,7 +7,7 @@ import Skeleton from "../components/ui/Skeleton";
 
 import type { NewsItem } from "../types/home";
 import NewsCard from "../features/home/NewsCard";
-import { mockNews } from "../features/home/mock";
+import { apiGet } from "../lib/api";
 
 import DraftSetupCard from "../features/home/DraftSetupCard";
 import SignInCard from "../features/home/SignInCard";
@@ -15,15 +15,18 @@ import SignInCard from "../features/home/SignInCard";
 import baseballImg from "../assets/Baseball.jpg";
 import { useAuth } from "../lib/auth";
 
+type NewsListResponse = {
+  items: NewsItem[];
+  total: number;
+};
+
 export default function HomePage() {
   const navigate = useNavigate();
   const authed = useAuth(); // ✅ reactive auth (updates immediately on login/logout)
 
-  // TODO (Backend/API): replace mockNews with API call (React Query recommended)
-  // Example: GET /api/news?limit=3
-  const [newsLoading] = useState(false);
-  const [newsError] = useState<string | null>(null);
-  const news = useMemo(() => mockNews, []);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [newsError, setNewsError] = useState<string | null>(null);
+  const [news, setNews] = useState<NewsItem[]>([]);
 
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<NewsItem | null>(null);
@@ -34,6 +37,29 @@ export default function HomePage() {
     // ✅ Draft is the new list page
     navigate(`/draft?query=${encodeURIComponent(q)}`);
   };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      setNewsLoading(true);
+      setNewsError(null);
+    });
+
+    apiGet<NewsListResponse>("/api/news", { limit: 3 }, controller.signal)
+      .then((data) => setNews(data.items))
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setNews([]);
+        setNewsError(err instanceof Error ? err.message : "Unknown error");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setNewsLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
 
   return (
     <div className="space-y-8">

@@ -1,10 +1,13 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import FadeIn from "../components/ui/FadeIn";
 import Skeleton from "../components/ui/Skeleton";
 import Dropdown from "../components/ui/Dropdown";
 import { useAuth } from "../lib/auth";
+import { apiDelete, apiGet, apiPost } from "../lib/api";
 
 import type {
+  DraftConfigLocal,
   DraftPick,
   DraftPlayer,
   DraftPositionFilter,
@@ -13,22 +16,18 @@ import type {
 } from "../types/draft";
 type DraftPosition = DraftPlayer["positions"][number];
 
-import { buildMockDraftTeams } from "../features/draft/mock";
 import {
   buildSlotTemplate,
   calculateCurrentRound,
   calculateRemainingBudget,
   clampRosterSize,
   draftCostClass,
-  filterDraftPlayers,
   findAvailableSlotIndex,
   formatAvg,
   getAllowedPositionsForPlayer,
   getPlayerDraftStatus,
   mlbTeamBadgeClass,
   readDraftConfig,
-  seedInitialPicks,
-  sortDraftPlayers,
   valueClass,
 } from "../features/draft/utils";
 
@@ -36,10 +35,10 @@ import DraftRoomBoard from "../features/draft/components/DraftRoomBoard";
 import AddBidModal from "../features/draft/components/AddBidModal";
 import TakenBidModal from "../features/draft/components/TakenBidModal";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+const ROOM_ID = "default";
 const BACKEND_LIST_LIMIT = 200;
 
-const draftPositionFilters = [
+const DEFAULT_POSITION_FILTERS: DraftPositionFilter[] = [
   "ALL",
   "C",
   "1B",
@@ -50,9 +49,9 @@ const draftPositionFilters = [
   "UTIL",
   "SP",
   "RP",
-] as const;
+];
 
-const SORT_OPTIONS: { value: DraftSort; label: string }[] = [
+const DEFAULT_SORT_OPTIONS: { value: DraftSort; label: string }[] = [
   { value: "score_desc", label: "By Score" },
   { value: "cost_desc", label: "By Draft Cost" },
   { value: "avg_desc", label: "By AVG" },
@@ -61,151 +60,255 @@ const SORT_OPTIONS: { value: DraftSort; label: string }[] = [
   { value: "sb_desc", label: "By SB" },
 ];
 
-type ApiPlayerListItem = {
-  id: number;
-  name: string;
-  team: string;
-  positions: string[];
-  valueScore: number;
+type DraftConfigResponse = {
+  leagueType: string;
+  budget: number;
+  rosterPlayers: number;
+  myTeamName: string;
+  oppTeamName: string;
+  opponentsCount: number;
+  oppTeamNames: string[];
 };
 
-type ApiPlayersListResponse = {
-  items: ApiPlayerListItem[];
+type DraftSortOptionResponse = {
+  value: string;
+  label: string;
+};
+
+type DraftBootstrapResponse = {
+  config: DraftConfigResponse;
+  teams: DraftTeam[];
+  positionFilters: string[];
+  sortOptions: DraftSortOptionResponse[];
+  picks: DraftPick[];
+};
+
+type DraftPlayersResponse = {
+  items: DraftPlayer[];
   page: number;
   limit: number;
   total: number;
   totalPages: number;
 };
 
-type ApiPlayerDetailResponse = {
-  id: number;
-  name: string;
-  team: string;
-  positions: string[];
-  valueScore: number;
-  stats: {
-    hr: number;
-  };
+type DraftPicksResponse = {
+  roomId: string;
+  items: DraftPick[];
 };
 
-const DRAFT_POSITIONS = new Set<DraftPosition>([
-  "C",
-  "1B",
-  "2B",
-  "3B",
-  "SS",
-  "OF",
-  "UTIL",
-  "SP",
-  "RP",
-  "BENCH",
-]);
-
-async function requestPlayers(
-  params: URLSearchParams,
-  signal: AbortSignal
-): Promise<ApiPlayersListResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/players?${params.toString()}`, { signal });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as ApiPlayersListResponse;
+function toInitialConfig(local: DraftConfigLocal): DraftConfigResponse {
+  return {
+    leagueType: local.leagueType ?? "standard",
+    budget: local.budget ?? 260,
+    rosterPlayers: local.rosterPlayers ?? 12,
+    myTeamName: (local.myTeamName ?? "My Team").trim() || "My Team",
+    oppTeamName: (local.oppTeamName ?? "Team A").trim() || "Team A",
+    opponentsCount: local.opponentsCount ?? 5,
+    oppTeamNames: local.oppTeamNames ?? [],
+  };
 }
 
-async function requestPlayerDetail(
-  playerId: number,
-  signal: AbortSignal
-): Promise<ApiPlayerDetailResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/players/${playerId}`, { signal });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as ApiPlayerDetailResponse;
+function cleanSortLabel(label: string) {
+  return label.replace(/\s*\((asc|desc)\)\s*/gi, "").trim();
 }
 
-function normalizeDraftPositions(rawPositions: string[]): DraftPosition[] {
-  const normalized = rawPositions
-    .map((pos) => pos.trim().toUpperCase())
-    .map((pos) => (pos === "DH" ? "UTIL" : pos))
-    .filter((pos): pos is DraftPosition => DRAFT_POSITIONS.has(pos as DraftPosition))
-    .filter((pos) => pos !== "BENCH");
+function normalizeSortOptions(raw: DraftSortOptionResponse[]) {
+  const preferred: DraftSort[] = [
+    "score_desc",
+    "cost_desc",
+    "avg_desc",
+    "hr_desc",
+    "rbi_desc",
+    "sb_desc",
+  ];
 
-  if (normalized.length === 0) return ["UTIL"];
-  return Array.from(new Set(normalized));
+  const byValue = new Map(raw.map((option) => [option.value, option]));
+  const seenLabels = new Set<string>();
+  const normalized: { value: DraftSort; label: string }[] = [];
+
+  for (const value of preferred) {
+    const option = byValue.get(value);
+    if (!option) continue;
+
+    const label = cleanSortLabel(option.label);
+    const key = label.toLowerCase();
+    if (seenLabels.has(key)) continue;
+
+    seenLabels.add(key);
+    normalized.push({ value, label });
+  }
+
+  return normalized.length > 0 ? normalized : DEFAULT_SORT_OPTIONS;
 }
 
-function estimateRecommendedBid(valueScore: number, positions: DraftPosition[]): number {
-  const isPitcher = positions.every((pos) => pos === "SP" || pos === "RP");
-  const multiplier = isPitcher ? 0.28 : 0.45;
-  return Math.max(1, Math.round(valueScore * multiplier));
+function normalizePositionFilters(raw: string[]): DraftPositionFilter[] {
+  const allowed = new Set(DEFAULT_POSITION_FILTERS);
+  const normalized = raw.filter((position): position is DraftPositionFilter =>
+    allowed.has(position as DraftPositionFilter)
+  );
+  return normalized.length > 0 ? normalized : DEFAULT_POSITION_FILTERS;
 }
 
 export default function DraftPage() {
   const authed = useAuth();
+  const [searchParams] = useSearchParams();
   const draftRoomTopRef = useRef<HTMLDivElement | null>(null);
 
-  // TODO(백엔드/DB): 드래프트 설정도 서버/DB 기반으로 교체 가능
-  const config = useMemo(() => readDraftConfig(), []);
-  const teams = useMemo<DraftTeam[]>(
-    () => buildMockDraftTeams(config.myTeamName, config.oppTeamName),
-    [config]
-  );
+  const localConfig = useMemo(() => readDraftConfig(), []);
 
-  const rosterSlots = useMemo(() => clampRosterSize(config.rosterPlayers), [config.rosterPlayers]);
-  const slotTemplate = useMemo(() => buildSlotTemplate(rosterSlots), [rosterSlots]);
-
+  const [config, setConfig] = useState<DraftConfigResponse>(() => toInitialConfig(localConfig));
+  const [teams, setTeams] = useState<DraftTeam[]>([]);
+  const [picks, setPicks] = useState<DraftPick[]>([]);
   const [players, setPlayers] = useState<DraftPlayer[]>([]);
 
-  // 초기 더미 드래프트 상태
-  const [picks, setPicks] = useState<DraftPick[]>(() => seedInitialPicks(teams, slotTemplate));
-
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("query")?.trim() ?? "");
   const [position, setPosition] = useState<DraftPositionFilter>("ALL");
   const [sort, setSort] = useState<DraftSort>("score_desc");
+
+  const [positionFilters, setPositionFilters] =
+    useState<DraftPositionFilter[]>(DEFAULT_POSITION_FILTERS);
+  const [sortOptions, setSortOptions] =
+    useState<{ value: DraftSort; label: string }[]>(DEFAULT_SORT_OPTIONS);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Compare toggle state (placeholder for later compare feature)
   const [compareAId, setCompareAId] = useState<string | null>(null);
   const [compareBId, setCompareBId] = useState<string | null>(null);
 
-  // Modal state
   const [addTarget, setAddTarget] = useState<DraftPlayer | null>(null);
   const [takenTarget, setTakenTarget] = useState<DraftPlayer | null>(null);
 
+  const rosterSlots = useMemo(() => clampRosterSize(config.rosterPlayers), [config.rosterPlayers]);
+  const slotTemplate = useMemo(() => buildSlotTemplate(rosterSlots), [rosterSlots]);
+
   const playersById = useMemo<Record<string, DraftPlayer>>(
-    () => Object.fromEntries(players.map((p) => [p.id, p])),
+    () => Object.fromEntries(players.map((player) => [player.id, player])),
     [players]
   );
 
-  const filtered = useMemo(() => {
-    const f = filterDraftPlayers(players, query, position);
-    return sortDraftPlayers(f, sort);
-  }, [players, query, position, sort]);
+  const myTeam = teams.find((team) => team.isMine) ?? teams[0] ?? null;
 
-  const myTeam = teams.find((t) => t.isMine) ?? teams[0];
+  const remainingBudget = useMemo(() => {
+    if (!myTeam) return config.budget;
+    return calculateRemainingBudget(config.budget, myTeam.id, picks);
+  }, [config.budget, myTeam, picks]);
 
-  const remainingBudget = useMemo(
-    () => calculateRemainingBudget(config.budget ?? 260, myTeam.id, picks),
-    [config.budget, myTeam.id, picks]
-  );
-
-  const currentRound = useMemo(
-    () => calculateCurrentRound(teams.length, rosterSlots, picks),
-    [teams.length, rosterSlots, picks]
-  );
+  const currentRound = useMemo(() => {
+    if (teams.length === 0) return 1;
+    return calculateCurrentRound(teams.length, rosterSlots, picks);
+  }, [teams.length, rosterSlots, picks]);
 
   const selectedA = useMemo(
-    () => players.find((p) => p.id === compareAId) ?? null,
+    () => players.find((player) => player.id === compareAId) ?? null,
     [players, compareAId]
   );
   const selectedB = useMemo(
-    () => players.find((p) => p.id === compareBId) ?? null,
+    () => players.find((player) => player.id === compareBId) ?? null,
     [players, compareBId]
   );
+
+  const addAllowedPositions = useMemo(() => {
+    if (!addTarget || !myTeam) return [];
+    return getAllowedPositionsForPlayer(myTeam.id, addTarget, slotTemplate, picks);
+  }, [addTarget, myTeam, slotTemplate, picks]);
+
+  const takenAllowedByTeam = useMemo(() => {
+    if (!takenTarget) return {};
+
+    const out: Record<string, DraftPosition[]> = {};
+    for (const team of teams) {
+      if (team.isMine) continue;
+      out[team.id] = getAllowedPositionsForPlayer(team.id, takenTarget, slotTemplate, picks);
+    }
+    return out;
+  }, [takenTarget, teams, slotTemplate, picks]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    apiGet<DraftBootstrapResponse>(
+      "/api/draft/bootstrap",
+      {
+        leagueType: localConfig.leagueType ?? "standard",
+        budget: localConfig.budget ?? 260,
+        rosterPlayers: localConfig.rosterPlayers ?? 12,
+        myTeamName: localConfig.myTeamName ?? "My Team",
+        oppTeamName: localConfig.oppTeamName ?? "Team A",
+        opponentsCount: localConfig.opponentsCount ?? 5,
+        roomId: ROOM_ID,
+      },
+      controller.signal
+    )
+      .then((data) => {
+        if (controller.signal.aborted) return;
+
+        setConfig(data.config);
+        setTeams(data.teams);
+        setPicks(data.picks);
+
+        const nextPositions = normalizePositionFilters(data.positionFilters);
+        setPositionFilters(nextPositions);
+        setPosition((prev) => (nextPositions.includes(prev) ? prev : nextPositions[0]));
+
+        const nextSortOptions = normalizeSortOptions(data.sortOptions);
+        setSortOptions(nextSortOptions);
+        setSort((prev) =>
+          nextSortOptions.some((option) => option.value === prev)
+            ? prev
+            : nextSortOptions[0]?.value ?? "score_desc"
+        );
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error(err);
+        setError(err instanceof Error ? err.message : "Failed to bootstrap draft data");
+      });
+
+    return () => controller.abort();
+  }, [localConfig]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
+
+    apiGet<DraftPlayersResponse>(
+      "/api/draft/players",
+      {
+        query: query.trim() || undefined,
+        position,
+        sort,
+        page: 1,
+        limit: BACKEND_LIST_LIMIT,
+      },
+      controller.signal
+    )
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setPlayers(data.items);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error(err);
+        setPlayers([]);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [query, position, sort]);
 
   const handleCompareToggle = (playerId: string) => {
     if (!authed) return;
 
     if (compareAId === playerId) {
-      // Keep ordering compact: if A is removed and B exists, promote B -> A.
       setCompareAId(compareBId);
       setCompareBId(null);
       return;
@@ -226,7 +329,6 @@ export default function DraftPage() {
       return;
     }
 
-    // Both occupied: replace B with the latest selection.
     setCompareBId(playerId);
   };
 
@@ -235,57 +337,40 @@ export default function DraftPage() {
     setCompareBId(null);
   };
 
-  // ✅ 유지: 이제 실제로 아래 AddBidModal에서 사용함
-  const addAllowedPositions = useMemo(() => {
-    if (!addTarget) return [];
-    return getAllowedPositionsForPlayer(myTeam.id, addTarget, slotTemplate, picks);
-  }, [addTarget, myTeam.id, slotTemplate, picks]);
-
-  const takenAllowedByTeam = useMemo(() => {
-    if (!takenTarget) return {};
-    const out: Record<string, DraftPosition[]> = {};
-    for (const team of teams) {
-      if (team.isMine) continue;
-      out[team.id] = getAllowedPositionsForPlayer(team.id, takenTarget, slotTemplate, picks);
-    }
-    return out;
-  }, [takenTarget, teams, slotTemplate, picks]);
-
   const handleRemovePick = (pick: DraftPick) => {
-    setPicks((prev) =>
-      prev.filter(
-        (p) =>
-          !(
-            p.playerId === pick.playerId &&
-            p.draftedByTeamId === pick.draftedByTeamId &&
-            p.slotIndex === pick.slotIndex
-          )
-      )
-    );
+    void apiDelete<DraftPicksResponse>(`/api/draft/picks/${pick.playerId}`, { roomId: ROOM_ID })
+      .then((data) => setPicks(data.items))
+      .catch((err: unknown) => {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "Failed to remove pick");
+      });
   };
 
   const handleAddFinish = (bid: number, selectedPos: DraftPosition) => {
-    if (!addTarget) return;
+    if (!addTarget || !myTeam) return;
 
     const slotIndex = findAvailableSlotIndex(myTeam.id, selectedPos, slotTemplate, picks);
     if (slotIndex === -1) return;
 
-    setPicks((prev) => [
-      ...prev.filter((p) => p.playerId !== addTarget.id),
-      {
-        playerId: addTarget.id,
-        draftedByTeamId: myTeam.id,
-        slotIndex,
-        slotPos: selectedPos,
-        bid,
-        type: "mine",
-      },
-    ]);
+    const payload: DraftPick = {
+      playerId: addTarget.id,
+      draftedByTeamId: myTeam.id,
+      slotIndex,
+      slotPos: selectedPos,
+      bid,
+      type: "mine",
+    };
 
-    setAddTarget(null);
-
-    // ✅ Finish 후 맨 위 Draft Room으로 부드럽게 이동
-    draftRoomTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    void apiPost<DraftPicksResponse, DraftPick>("/api/draft/picks", payload, { roomId: ROOM_ID })
+      .then((data) => {
+        setPicks(data.items);
+        setAddTarget(null);
+        draftRoomTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      })
+      .catch((err: unknown) => {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "Failed to save draft pick");
+      });
   };
 
   const handleTakenFinish = (
@@ -298,89 +383,26 @@ export default function DraftPage() {
     const slotIndex = findAvailableSlotIndex(draftedByTeamId, selectedPos, slotTemplate, picks);
     if (slotIndex === -1) return;
 
-    setPicks((prev) => [
-      ...prev.filter((p) => p.playerId !== takenTarget.id),
-      {
-        playerId: takenTarget.id,
-        draftedByTeamId,
-        slotIndex,
-        slotPos: selectedPos,
-        bid,
-        type: "taken",
-      },
-    ]);
+    const payload: DraftPick = {
+      playerId: takenTarget.id,
+      draftedByTeamId,
+      slotIndex,
+      slotPos: selectedPos,
+      bid,
+      type: "taken",
+    };
 
-    setTakenTarget(null);
-
-    // ✅ Finish 후 맨 위 Draft Room으로 부드럽게 이동
-    draftRoomTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  // TODO(백엔드/DB): 현재 picks 상태를 서버에 저장하도록 교체 필요
-  // 예) POST /api/draft/picks, DELETE /api/draft/picks/:id
-  useEffect(() => {
-    // localStorage backup (프론트 임시 보관)
-    localStorage.setItem("ppadun_draft_room_mock", JSON.stringify(picks));
-  }, [picks]);
-
-  // 선수 목록은 backend API에서 로드하고 현재 Draft UI 타입으로 매핑한다.
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const requestParams = new URLSearchParams();
-    if (query.trim()) requestParams.set("query", query.trim());
-    requestParams.set("sort", "value_desc");
-    requestParams.set("page", "1");
-    requestParams.set("limit", String(BACKEND_LIST_LIMIT));
-
-    queueMicrotask(() => {
-      setLoading(true);
-      setError(null);
-    });
-
-    requestPlayers(requestParams, controller.signal)
-      .then(async (listData) => {
-        const detailResults = await Promise.allSettled(
-          listData.items.map((item) => requestPlayerDetail(item.id, controller.signal))
-        );
-        if (controller.signal.aborted) return;
-
-        const nextPlayers: DraftPlayer[] = listData.items.map((item, idx) => {
-          const detail = detailResults[idx].status === "fulfilled" ? detailResults[idx].value : null;
-          const positions = normalizeDraftPositions(detail?.positions ?? item.positions);
-          const valueScore = detail?.valueScore ?? item.valueScore;
-          const hr = detail?.stats?.hr;
-
-          return {
-            id: String(item.id),
-            name: item.name,
-            positions,
-            recommendedBid: estimateRecommendedBid(valueScore, positions),
-            team: item.team,
-            avg: null,
-            hr: typeof hr === "number" ? hr : null,
-            rbi: null,
-            sb: null,
-            ppaValue: valueScore,
-          };
-        });
-
-        setPlayers(nextPlayers);
+    void apiPost<DraftPicksResponse, DraftPick>("/api/draft/picks", payload, { roomId: ROOM_ID })
+      .then((data) => {
+        setPicks(data.items);
+        setTakenTarget(null);
+        draftRoomTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       })
       .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
         console.error(err);
-        setPlayers([]);
-        setError(err instanceof Error ? err.message : "Unknown error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        setError(err instanceof Error ? err.message : "Failed to save draft pick");
       });
-
-    return () => controller.abort();
-  }, [query]);
+  };
 
   return (
     <div className="space-y-6">
@@ -390,8 +412,7 @@ export default function DraftPage() {
             <div className="text-sm font-black text-white/70">PPA-DUN</div>
             <h1 className="mt-1 text-3xl font-black text-white">Draft Room</h1>
             <p className="mt-2 text-sm text-white/60">
-              {String(config.leagueType ?? "standard").toUpperCase()} • $
-              {config.budget ?? 260} Budget • {rosterSlots} Players
+              {String(config.leagueType ?? "standard").toUpperCase()} - ${config.budget} Budget - {rosterSlots} Players
             </p>
           </div>
 
@@ -402,7 +423,6 @@ export default function DraftPage() {
         </div>
       </FadeIn>
 
-      {/* Draft Room board: 로그인 유저만 표시 */}
       <FadeIn delayMs={60}>
         <div ref={draftRoomTopRef}>
           {authed ? (
@@ -420,14 +440,13 @@ export default function DraftPage() {
             <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
               <div className="text-lg font-black text-white">Guest View</div>
               <div className="mt-2 text-sm text-white/60">
-                로그인하면 Draft Room 상태 보드와 Add / Taken 기능을 사용할 수 있습니다.
+                Sign in to use the live draft room board and Add / Taken actions.
               </div>
             </section>
           )}
         </div>
       </FadeIn>
 
-      {/* Search + filters */}
       <FadeIn delayMs={100} className="relative z-40">
         <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -445,19 +464,19 @@ export default function DraftPage() {
               <Dropdown<DraftSort>
                 label="Sort"
                 value={sort}
-                options={SORT_OPTIONS}
+                options={sortOptions}
                 onChange={setSort}
               />
             </div>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {draftPositionFilters.map((p) => {
-              const active = position === p;
+            {positionFilters.map((filterValue) => {
+              const active = position === filterValue;
               return (
                 <button
-                  key={p}
-                  onClick={() => setPosition(p as DraftPositionFilter)}
+                  key={filterValue}
+                  onClick={() => setPosition(filterValue)}
                   className={[
                     "rounded-full px-3 py-1 text-xs font-extrabold transition",
                     active
@@ -465,32 +484,28 @@ export default function DraftPage() {
                       : "border border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
                   ].join(" ")}
                 >
-                  {p}
+                  {filterValue}
                 </button>
               );
             })}
 
-            <div className="ml-auto text-lg font-black text-emerald-400">
-              Remaining Budget: ${remainingBudget}
-            </div>
+            <div className="ml-auto text-lg font-black text-emerald-400">Remaining Budget: ${remainingBudget}</div>
           </div>
         </section>
       </FadeIn>
 
-      {/* Recommendation button above compare bar */}
       <FadeIn delayMs={110}>
         <div className="flex justify-end">
           <button
             type="button"
             className="rounded-xl border border-fuchsia-400/35 bg-fuchsia-500/12 px-4 py-2 text-xs font-black text-fuchsia-100 transition hover:bg-fuchsia-500/20"
-            title="추천 팝업은 다음 단계에서 연결"
+            title="Recommendation popup will be connected later"
           >
-            ✦ PPA-DUN Recommendation
+            ? PPA-DUN Recommendation
           </button>
         </div>
       </FadeIn>
 
-      {/* Compare selection placeholder */}
       <FadeIn delayMs={120}>
         <section className="rounded-2xl border border-fuchsia-500/55 bg-[#1b1228] p-4 shadow-[0_0_22px_rgba(168,85,247,0.22)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -505,18 +520,15 @@ export default function DraftPage() {
                   {selectedA ? (
                     <>
                       <div className="flex items-center gap-2 text-xs text-white/80">
-                        <span className="text-sm">⚾</span>
-                        <span className="rounded bg-emerald-500/25 px-1.5 py-0.5 font-black text-emerald-100">
-                          A
-                        </span>
+                        <span className="text-sm">?</span>
+                        <span className="rounded bg-emerald-500/25 px-1.5 py-0.5 font-black text-emerald-100">A</span>
                         <span className="truncate font-black text-white">{selectedA.name}</span>
                       </div>
                       <div className="mt-1 text-[11px] font-semibold text-white/70">
-                        {selectedA.positions.join("/")} · {selectedA.team} · ${selectedA.recommendedBid}
+                        {selectedA.positions.join("/")} - {selectedA.team} - ${selectedA.recommendedBid}
                       </div>
                       <div className="mt-1 text-[10px] text-white/55">
-                        AVG {formatAvg(selectedA.avg)} | HR {selectedA.hr ?? "—"} | RBI{" "}
-                        {selectedA.rbi ?? "—"} | SB {selectedA.sb ?? "—"}
+                        AVG {formatAvg(selectedA.avg)} | HR {selectedA.hr ?? "-"} | RBI {selectedA.rbi ?? "-"} | SB {selectedA.sb ?? "-"}
                       </div>
                     </>
                   ) : (
@@ -530,18 +542,15 @@ export default function DraftPage() {
                   {selectedB ? (
                     <>
                       <div className="flex items-center gap-2 text-xs text-white/80">
-                        <span className="text-sm">⚾</span>
-                        <span className="rounded bg-emerald-500/25 px-1.5 py-0.5 font-black text-emerald-100">
-                          B
-                        </span>
+                        <span className="text-sm">?</span>
+                        <span className="rounded bg-emerald-500/25 px-1.5 py-0.5 font-black text-emerald-100">B</span>
                         <span className="truncate font-black text-white">{selectedB.name}</span>
                       </div>
                       <div className="mt-1 text-[11px] font-semibold text-white/70">
-                        {selectedB.positions.join("/")} · {selectedB.team} · ${selectedB.recommendedBid}
+                        {selectedB.positions.join("/")} - {selectedB.team} - ${selectedB.recommendedBid}
                       </div>
                       <div className="mt-1 text-[10px] text-white/55">
-                        AVG {formatAvg(selectedB.avg)} | HR {selectedB.hr ?? "—"} | RBI{" "}
-                        {selectedB.rbi ?? "—"} | SB {selectedB.sb ?? "—"}
+                        AVG {formatAvg(selectedB.avg)} | HR {selectedB.hr ?? "-"} | RBI {selectedB.rbi ?? "-"} | SB {selectedB.sb ?? "-"}
                       </div>
                     </>
                   ) : (
@@ -564,16 +573,15 @@ export default function DraftPage() {
                 type="button"
                 disabled={!selectedA || !selectedB || !authed}
                 className="rounded-xl bg-fuchsia-600 px-4 py-2 text-xs font-black text-white transition hover:bg-fuchsia-500 disabled:opacity-40"
-                title="비교 팝업은 다음 단계에서 연결"
+                title="Compare popup will be connected later"
               >
-                ⚡ Compare
+                ? Compare
               </button>
             </div>
           </div>
         </section>
       </FadeIn>
 
-      {/* Players table */}
       <FadeIn delayMs={140}>
         <section className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
           <div className="grid grid-cols-[.4fr_1.8fr_.6fr_.8fr_.8fr_.8fr_.8fr_.8fr_.9fr_1.3fr_1.1fr_.9fr] bg-black/40 px-4 py-3 text-xs font-extrabold text-white/60">
@@ -598,30 +606,24 @@ export default function DraftPage() {
               </div>
             )}
 
-            {!loading && error && (
-              <div className="p-4 text-sm text-red-200">
-                Failed to load players: {error}
-              </div>
-            )}
+            {!loading && error && <div className="p-4 text-sm text-red-200">Failed to load players: {error}</div>}
 
-            {!loading && !error && filtered.length === 0 && (
-              <div className="p-4 text-sm text-white/70">
-                No results. Try another search or filter.
-              </div>
+            {!loading && !error && players.length === 0 && (
+              <div className="p-4 text-sm text-white/70">No results. Try another search or filter.</div>
             )}
 
             {!loading &&
               !error &&
-              filtered.map((p, idx) => {
-                const status = getPlayerDraftStatus(p.id, picks, teams);
-                const compareAActive = compareAId === p.id;
-                const compareBActive = compareBId === p.id;
+              players.map((player, idx) => {
+                const status = getPlayerDraftStatus(player.id, picks, teams);
+                const compareAActive = compareAId === player.id;
+                const compareBActive = compareBId === player.id;
                 const compareRole = compareAActive ? "A" : compareBActive ? "B" : null;
                 const compareActive = Boolean(compareRole);
 
                 return (
                   <div
-                    key={p.id}
+                    key={player.id}
                     className={[
                       "grid grid-cols-[.4fr_1.8fr_.6fr_.8fr_.8fr_.8fr_.8fr_.8fr_.9fr_1.3fr_1.1fr_.9fr] items-center px-4 py-3 text-sm text-white/85 transition",
                       compareActive
@@ -631,37 +633,36 @@ export default function DraftPage() {
                   >
                     <div className="text-white/45">{idx + 1}</div>
 
-                    <div className="font-semibold text-white">{p.name}</div>
+                    <div className="font-semibold text-white">{player.name}</div>
 
                     <div>
                       <span className="rounded-lg bg-white/10 px-2 py-1 text-[11px] font-extrabold text-white/80">
-                        {p.positions[0]}
+                        {player.positions[0]}
                       </span>
                     </div>
 
-                    <div className={draftCostClass(authed)}>${p.recommendedBid}</div>
+                    <div className={draftCostClass(authed)}>${player.recommendedBid}</div>
 
                     <div>
                       <span
                         className={[
                           "inline-flex items-center rounded-lg border px-2 py-1 text-[11px] font-extrabold",
-                          mlbTeamBadgeClass(p.team),
+                          mlbTeamBadgeClass(player.team),
                         ].join(" ")}
                       >
-                        {p.team}
+                        {player.team}
                       </span>
                     </div>
 
-                    <div className="text-white/70">{formatAvg(p.avg)}</div>
-                    <div className="font-semibold text-amber-300">{p.hr ?? "—"}</div>
-                    <div className="text-white/70">{p.rbi ?? "—"}</div>
-                    <div className="font-semibold text-amber-300">{p.sb ?? "—"}</div>
+                    <div className="text-white/70">{formatAvg(player.avg)}</div>
+                    <div className="font-semibold text-amber-300">{player.hr ?? "-"}</div>
+                    <div className="text-white/70">{player.rbi ?? "-"}</div>
+                    <div className="font-semibold text-amber-300">{player.sb ?? "-"}</div>
 
-                    <div className={`font-black ${valueClass(p.ppaValue, authed)}`}>
-                      {p.ppaValue.toFixed(1)}
+                    <div className={`font-black ${valueClass(player.ppaValue, authed)}`}>
+                      {player.ppaValue.toFixed(1)}
                     </div>
 
-                    {/* Action */}
                     <div className="flex items-center gap-2">
                       {status.kind === "mine" ? (
                         <div className="rounded-xl bg-sky-500/15 px-3 py-2 text-xs font-black text-sky-200 ring-1 ring-sky-400/20">
@@ -674,13 +675,13 @@ export default function DraftPage() {
                       ) : authed ? (
                         <>
                           <button
-                            onClick={() => setAddTarget(p)}
+                            onClick={() => setAddTarget(player)}
                             className="rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-black text-emerald-200 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/25"
                           >
                             Add
                           </button>
                           <button
-                            onClick={() => setTakenTarget(p)}
+                            onClick={() => setTakenTarget(player)}
                             className="rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-black text-rose-200 ring-1 ring-rose-400/20 transition hover:bg-rose-500/25"
                           >
                             Taken
@@ -693,12 +694,11 @@ export default function DraftPage() {
                       )}
                     </div>
 
-                    {/* Compare toggle switch */}
                     <div className="flex items-center justify-end">
                       <button
                         type="button"
                         disabled={!authed}
-                        onClick={() => handleCompareToggle(p.id)}
+                        onClick={() => handleCompareToggle(player.id)}
                         className={[
                           "relative h-6 w-14 rounded-full border transition",
                           compareActive
@@ -706,7 +706,7 @@ export default function DraftPage() {
                             : "border-white/10 bg-white/5 hover:bg-white/10",
                           !authed ? "opacity-40" : "",
                         ].join(" ")}
-                        title={!authed ? "로그인 필요" : compareRole ? `Selected ${compareRole}` : "Select for compare"}
+                        title={!authed ? "Sign in required" : compareRole ? `Selected ${compareRole}` : "Select for compare"}
                       >
                         <span
                           className={[
@@ -727,12 +727,11 @@ export default function DraftPage() {
           </div>
 
           <div className="border-t border-white/10 px-4 py-3 text-xs text-white/45">
-            Players are loaded from backend API. Draft 저장/삭제, 팀별 상태, 액션 결과는 추후 API로 확장 예정입니다.
+            Players and draft picks are loaded from backend APIs.
           </div>
         </section>
       </FadeIn>
 
-      {/* Add modal */}
       {addTarget && (
         <AddBidModal
           key={`add-${addTarget.id}`}
@@ -744,7 +743,6 @@ export default function DraftPage() {
         />
       )}
 
-      {/* Taken modal */}
       {takenTarget && (
         <TakenBidModal
           key={`taken-${takenTarget.id}`}

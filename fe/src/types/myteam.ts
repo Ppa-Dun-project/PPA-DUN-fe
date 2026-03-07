@@ -10,3 +10,27 @@ export type MyTeamPlayer = {
   sb: number;
   ppaValue: number; // PPA-DUN Value (valueScore)
 };
+
+export type MyTeamPosFilter =
+  | "ALL"
+  | "C"
+  | "1B"
+  | "2B"
+  | "3B"
+  | "SS"
+  | "LF"
+  | "RF"
+  | "CF"
+  | "DH"
+  | "SP"
+  | "RP";
+
+export type MyTeamSort =
+  | "score_desc"
+  | "score_asc"
+  | "cost_desc"
+  | "cost_asc"
+  | "avg_desc"
+  | "hr_desc"
+  | "rbi_desc"
+  | "sb_desc";
