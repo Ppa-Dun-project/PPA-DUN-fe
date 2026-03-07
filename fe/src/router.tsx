@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, redirect } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -21,19 +21,19 @@ export const router = createBrowserRouter([
 
       // Backward compatibility
       { path: "players", element: <Navigate to="/draft" replace /> },
-      { path: "players/:id", element: <Navigate to="/draft/:id" replace /> },
+      {
+        path: "players/:id",
+        loader: ({ params }) => redirect(params.id ? `/draft/${params.id}` : "/draft"),
+      },
 
       { path: "login", element: <LoginPage /> },
 
       // Protected
       {
         element: <ProtectedRoute />,
-        children: [
-          { path: "my-team", element: <MyTeamPage /> },
-        ],
+        children: [{ path: "my-team", element: <MyTeamPage /> }],
       },
 
-      // ✅ Settings 제거했으므로, 혹시 들어오면 my-team으로 보내기(선택)
       { path: "settings", element: <Navigate to="/my-team" replace /> },
     ],
   },

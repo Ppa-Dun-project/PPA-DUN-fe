@@ -17,9 +17,7 @@ import {
 
 const SORT_OPTIONS: { value: MyTeamSort; label: string }[] = [
   { value: "score_desc", label: "By Score" },
-  { value: "score_asc", label: "By Score" },
   { value: "cost_desc", label: "By Value $" },
-  { value: "cost_asc", label: "By Value $" },
   { value: "avg_desc", label: "By AVG" },
   { value: "hr_desc", label: "By HR" },
   { value: "rbi_desc", label: "By RBI" },
@@ -64,7 +62,7 @@ export default function MyTeamPage() {
         </div>
       </FadeIn>
 
-      <FadeIn delayMs={60}>
+      <FadeIn delayMs={60} className="relative z-40">
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             {/* Search */}

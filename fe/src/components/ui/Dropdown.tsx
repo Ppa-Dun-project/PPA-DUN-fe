@@ -70,16 +70,16 @@ export default function Dropdown<T extends string>({
       <div
         className={`
           absolute left-0 right-0 z-30 mt-2
-          overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/95 backdrop-blur
+          overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/70 backdrop-blur
           transition-all duration-200 ease-out
-          ${open ? "max-h-72 opacity-100 translate-y-0" : "max-h-0 opacity-0 -translate-y-1"}
+          ${open ? "max-h-80 opacity-100 translate-y-0" : "max-h-0 opacity-0 -translate-y-1"}
         `}
       >
         {/* ✅ 이 영역이 실제 스크롤 컨테이너 */}
         <div
           ref={listRef}
           className="
-            max-h-72 overflow-y-auto overscroll-contain
+            ppadun-dropdown-scroll max-h-80 overflow-y-auto overscroll-contain
             py-1
           "
           onWheel={(e) => {
