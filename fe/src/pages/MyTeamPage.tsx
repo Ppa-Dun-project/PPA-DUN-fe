@@ -7,6 +7,9 @@ import type { MyTeamPlayer, MyTeamPosFilter, MyTeamSort } from "../types/myteam"
 import { formatAvg, teamBadgeClass, valueScoreClass } from "../features/myteam/utils";
 import { apiGet } from "../lib/api";
 
+const ROOM_ID = "default";
+const MY_TEAM_ID = "team-me";
+
 type MyTeamPositionsResponse = {
   positions: MyTeamPosFilter[];
 };
@@ -38,6 +41,8 @@ const DEFAULT_POSITIONS: MyTeamPosFilter[] = [
   "2B",
   "3B",
   "SS",
+  "OF",
+  "UTIL",
   "LF",
   "RF",
   "CF",
@@ -149,6 +154,8 @@ export default function MyTeamPage() {
         sort,
         page: 1,
         limit: 200,
+        roomId: ROOM_ID,
+        myTeamId: MY_TEAM_ID,
       },
       controller.signal
     )
