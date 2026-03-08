@@ -6,6 +6,7 @@ import Dropdown from "../components/ui/Dropdown";
 import type { MyTeamPlayer, MyTeamPosFilter, MyTeamSort } from "../types/myteam";
 import { formatAvg, teamBadgeClass, valueScoreClass } from "../features/myteam/utils";
 import { apiGet } from "../lib/api";
+import PlayerInfoModal from "../features/players/components/PlayerInfoModal";
 
 const ROOM_ID = "default";
 const MY_TEAM_ID = "team-me";
@@ -107,6 +108,7 @@ export default function MyTeamPage() {
   const [remainingBudget, setRemainingBudget] = useState(260);
   const [spentBudget, setSpentBudget] = useState(0);
   const [totalBudget, setTotalBudget] = useState(260);
+  const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -180,6 +182,19 @@ export default function MyTeamPage() {
 
     return () => controller.abort();
   }, [query, pos, sort]);
+
+  const openPlayerInfo = (rawPlayerId: string) => {
+    const parsed = Number(rawPlayerId);
+    if (!Number.isFinite(parsed)) {
+      setError("Invalid player id");
+      return;
+    }
+    setProfilePlayerId(parsed);
+  };
+
+  const closePlayerInfo = () => {
+    setProfilePlayerId(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -274,12 +289,19 @@ export default function MyTeamPage() {
               {!loading &&
                 !error &&
                 players.map((player) => (
-                  <button
+                  <div
                     key={player.id}
-                    onClick={() => {}}
                     className="grid w-full grid-cols-[1.8fr_.6fr_.6fr_.7fr_.7fr_.7fr_.7fr_.7fr_.9fr] items-center px-4 py-3 text-left text-sm text-white/85 transition hover:bg-white/5"
                   >
-                    <div className="font-semibold text-white">{player.name}</div>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => openPlayerInfo(player.id)}
+                        className="rounded-md border border-transparent px-2 py-1 -mx-2 -my-1 font-semibold text-white transition hover:border-white/35 hover:bg-white/5 hover:text-amber-200 focus-visible:border-white/45 focus-visible:bg-white/10 focus-visible:outline-none"
+                      >
+                        {player.name}
+                      </button>
+                    </div>
 
                     <div>
                       <span className="rounded-lg bg-white/10 px-2 py-1 text-xs font-extrabold text-white/80">
@@ -308,12 +330,18 @@ export default function MyTeamPage() {
                     <div className={`text-right text-sm font-black ${valueScoreClass(player.ppaValue)}`}>
                       {player.ppaValue.toFixed(1)}
                     </div>
-                  </button>
+                  </div>
                 ))}
             </div>
           </div>
         </section>
       </FadeIn>
+
+      <PlayerInfoModal
+        open={profilePlayerId !== null}
+        playerId={profilePlayerId}
+        onClose={closePlayerInfo}
+      />
     </div>
   );
 }

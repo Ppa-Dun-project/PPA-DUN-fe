@@ -33,6 +33,7 @@ import DraftRoomBoard from "../features/draft/components/DraftRoomBoard";
 import AddBidModal from "../features/draft/components/AddBidModal";
 import TakenBidModal from "../features/draft/components/TakenBidModal";
 import PlayerComparisonModal from "../features/draft/components/PlayerComparisonModal";
+import PlayerInfoModal from "../features/players/components/PlayerInfoModal";
 
 const ROOM_ID = "default";
 const BACKEND_LIST_LIMIT = 200;
@@ -191,6 +192,7 @@ export default function DraftPage() {
   const [compareAId, setCompareAId] = useState<string | null>(null);
   const [compareBId, setCompareBId] = useState<string | null>(null);
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
 
   const [addTarget, setAddTarget] = useState<DraftPlayer | null>(null);
   const [takenTarget, setTakenTarget] = useState<DraftPlayer | null>(null);
@@ -422,6 +424,19 @@ export default function DraftPage() {
     setCompareAId(null);
     setCompareBId(null);
     setComparisonOpen(false);
+  };
+
+  const openPlayerInfo = (rawPlayerId: string) => {
+    const parsed = Number(rawPlayerId);
+    if (!Number.isFinite(parsed)) {
+      setError("Invalid player id");
+      return;
+    }
+    setProfilePlayerId(parsed);
+  };
+
+  const closePlayerInfo = () => {
+    setProfilePlayerId(null);
   };
 
   const handleRemovePick = (pick: DraftPick) => {
@@ -723,7 +738,15 @@ export default function DraftPage() {
                   >
                     <div className="text-white/45">{idx + 1}</div>
 
-                    <div className="font-semibold text-white">{player.name}</div>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => openPlayerInfo(player.id)}
+                        className="rounded-md border border-transparent px-2 py-1 -mx-2 -my-1 font-semibold text-white transition hover:border-white/35 hover:bg-white/5 hover:text-amber-200 focus-visible:border-white/45 focus-visible:bg-white/10 focus-visible:outline-none"
+                      >
+                        {player.name}
+                      </button>
+                    </div>
 
                     <div>
                       <span className="rounded-lg bg-white/10 px-2 py-1 text-[11px] font-extrabold text-white/80">
@@ -850,6 +873,12 @@ export default function DraftPage() {
         playerA={selectedA}
         playerB={selectedB}
         onClose={() => setComparisonOpen(false)}
+      />
+
+      <PlayerInfoModal
+        open={profilePlayerId !== null}
+        playerId={profilePlayerId}
+        onClose={closePlayerInfo}
       />
     </div>
   );
