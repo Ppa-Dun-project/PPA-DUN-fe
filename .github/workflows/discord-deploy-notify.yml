@@ -9,9 +9,6 @@ on:
       service:
         required: true
         type: string
-      image:
-        required: false
-        type: string
     secrets:
       DISCORD_DEPLOY_WEBHOOK:
         required: true
@@ -31,8 +28,7 @@ jobs:
               "fields": [
                 {"name": "Branch", "value": "'"${{ github.ref_name }}"'", "inline": true},
                 {"name": "Commit", "value": "'"${GITHUB_SHA::7}"'", "inline": true},
-                {"name": "Author", "value": "'"${{ github.actor }}"'", "inline": true},
-                {"name": "Image", "value": "`${{ inputs.image }}`", "inline": false}
+                {"name": "Author", "value": "'"${{ github.actor }}"'", "inline": true}
               ],
               "timestamp": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"
             }]
