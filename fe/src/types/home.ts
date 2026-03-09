@@ -1,8 +1,8 @@
-export type NewsItem = {
+﻿export type NewsItem = {
   id: string;
   title: string;
   summary: string;
-  publishedAt: string; 
+  publishedAt: string;
   url?: string;
   source?: string;
 };
