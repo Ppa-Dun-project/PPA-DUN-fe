@@ -7,9 +7,7 @@ import type { MyTeamPlayer, MyTeamPosFilter, MyTeamSort } from "../types/myteam"
 import { formatAvg, teamBadgeClass, valueScoreClass } from "../features/myteam/utils";
 import { apiGet } from "../lib/api";
 import PlayerInfoModal from "../features/players/components/PlayerInfoModal";
-
-const ROOM_ID = "default";
-const MY_TEAM_ID = "team-me";
+import { DRAFT_ROOM_ID, MY_TEAM_ID } from "../lib/runtimeConfig";
 
 type MyTeamPositionsResponse = {
   positions: MyTeamPosFilter[];
@@ -156,7 +154,7 @@ export default function MyTeamPage() {
         sort,
         page: 1,
         limit: 200,
-        roomId: ROOM_ID,
+        roomId: DRAFT_ROOM_ID,
         myTeamId: MY_TEAM_ID,
       },
       controller.signal

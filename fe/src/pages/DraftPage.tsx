@@ -5,6 +5,7 @@ import Skeleton from "../components/ui/Skeleton";
 import Dropdown from "../components/ui/Dropdown";
 import { useAuth } from "../lib/auth";
 import { apiDelete, apiGet, apiPost } from "../lib/api";
+import { DRAFT_ROOM_ID } from "../lib/runtimeConfig";
 
 import type {
   DraftConfigLocal,
@@ -35,7 +36,6 @@ import TakenBidModal from "../features/draft/components/TakenBidModal";
 import PlayerComparisonModal from "../features/draft/components/PlayerComparisonModal";
 import PlayerInfoModal from "../features/players/components/PlayerInfoModal";
 
-const ROOM_ID = "default";
 const BACKEND_LIST_LIMIT = 200;
 
 const DEFAULT_POSITION_FILTERS: DraftPositionFilter[] = [
@@ -235,7 +235,7 @@ export default function DraftPage() {
     apiGet<DraftAllowedPositionsResponse>(
       "/api/draft/allowed-positions",
       {
-        roomId: ROOM_ID,
+        roomId: DRAFT_ROOM_ID,
         playerId: addTarget.id,
         teamId: myTeam.id,
         rosterPlayers: rosterSlots,
@@ -267,7 +267,7 @@ export default function DraftPage() {
         const data = await apiGet<DraftAllowedPositionsResponse>(
           "/api/draft/allowed-positions",
           {
-            roomId: ROOM_ID,
+            roomId: DRAFT_ROOM_ID,
             playerId: takenTarget.id,
             teamId: team.id,
             rosterPlayers: rosterSlots,
@@ -323,7 +323,7 @@ export default function DraftPage() {
         myTeamName: localConfig.myTeamName ?? "My Team",
         oppTeamName: localConfig.oppTeamName ?? "Team A",
         opponentsCount: localConfig.opponentsCount ?? 5,
-        roomId: ROOM_ID,
+        roomId: DRAFT_ROOM_ID,
       },
       controller.signal
     )
@@ -440,7 +440,7 @@ export default function DraftPage() {
   };
 
   const handleRemovePick = (pick: DraftPick) => {
-    void apiDelete<DraftPicksResponse>(`/api/draft/picks/${pick.playerId}`, { roomId: ROOM_ID })
+    void apiDelete<DraftPicksResponse>(`/api/draft/picks/${pick.playerId}`, { roomId: DRAFT_ROOM_ID })
       .then((data) => setPicks(data.items))
       .catch((err: unknown) => {
         console.error(err);
@@ -462,7 +462,7 @@ export default function DraftPage() {
     void apiPost<DraftPicksResponse, DraftPickUpsertIn>(
       "/api/draft/picks",
       payload,
-      { roomId: ROOM_ID, rosterPlayers: rosterSlots }
+      { roomId: DRAFT_ROOM_ID, rosterPlayers: rosterSlots }
     )
       .then((data) => {
         setPicks(data.items);
@@ -493,7 +493,7 @@ export default function DraftPage() {
     void apiPost<DraftPicksResponse, DraftPickUpsertIn>(
       "/api/draft/picks",
       payload,
-      { roomId: ROOM_ID, rosterPlayers: rosterSlots }
+      { roomId: DRAFT_ROOM_ID, rosterPlayers: rosterSlots }
     )
       .then((data) => {
         setPicks(data.items);
@@ -605,7 +605,7 @@ export default function DraftPage() {
             className="rounded-xl border border-fuchsia-400/35 bg-fuchsia-500/12 px-4 py-2 text-xs font-black text-fuchsia-100 transition hover:bg-fuchsia-500/20"
             title="Recommendation popup will be connected later"
           >
-            ? PPA-DUN Recommendation
+            PPA-DUN Recommendation
           </button>
         </div>
       </FadeIn>
@@ -624,7 +624,6 @@ export default function DraftPage() {
                   {selectedA ? (
                     <>
                       <div className="flex items-center gap-2 text-xs text-white/80">
-                        <span className="text-sm">?</span>
                         <span className="rounded bg-emerald-500/25 px-1.5 py-0.5 font-black text-emerald-100">A</span>
                         <span className="truncate font-black text-white">{selectedA.name}</span>
                       </div>
@@ -646,7 +645,6 @@ export default function DraftPage() {
                   {selectedB ? (
                     <>
                       <div className="flex items-center gap-2 text-xs text-white/80">
-                        <span className="text-sm">?</span>
                         <span className="rounded bg-emerald-500/25 px-1.5 py-0.5 font-black text-emerald-100">B</span>
                         <span className="truncate font-black text-white">{selectedB.name}</span>
                       </div>
