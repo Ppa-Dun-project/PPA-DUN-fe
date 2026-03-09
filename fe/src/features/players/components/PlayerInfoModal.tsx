@@ -148,7 +148,7 @@ export default function PlayerInfoModal({ open, playerId, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[75]">
+    <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Close player information"
@@ -156,8 +156,8 @@ export default function PlayerInfoModal({ open, playerId, onClose }: Props) {
         onClick={onClose}
       />
 
-      <div className="relative mx-auto mt-4 w-[92%] max-h-[88vh] max-w-4xl overflow-y-auto rounded-3xl border border-red-500/30 bg-[#090d1a] shadow-[0_28px_100px_rgba(0,0,0,0.72)]">
-        <div className="relative bg-gradient-to-r from-[#8c0f1c] via-[#b01f28] to-[#d94848] px-5 pb-4 pt-4">
+      <div className="relative w-[90%] max-h-[82vh] max-w-3xl overflow-y-auto rounded-3xl border border-red-500/30 bg-[#090d1a] shadow-[0_28px_100px_rgba(0,0,0,0.72)]">
+        <div className="relative bg-gradient-to-r from-[#8c0f1c] via-[#b01f28] to-[#d94848] px-5 pb-4 pt-7 pr-16">
           <button
             type="button"
             onClick={onClose}
@@ -259,14 +259,7 @@ export default function PlayerInfoModal({ open, playerId, onClose }: Props) {
             <section>
               <div className="mb-2 text-sm font-black uppercase tracking-wide text-white/55">Career History (MLB)</div>
               <div className="rounded-xl border border-white/10 bg-[#0f1424] p-4 text-sm text-white/70">
-                Backend response currently does not include season-by-season career rows.
-              </div>
-            </section>
-
-            <section>
-              <div className="mb-2 text-sm font-black uppercase tracking-wide text-white/55">Scouting Grades</div>
-              <div className="rounded-xl border border-white/10 bg-[#0f1424] p-4 text-sm text-white/70">
-                Backend response currently does not include scouting grade fields.
+                Planned for development in V2.
               </div>
             </section>
 
