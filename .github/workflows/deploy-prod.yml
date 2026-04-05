@@ -52,7 +52,7 @@ jobs:
 
       - name: Update image tag
         run: |
-          sed -i 's|tag: .*|tag: "${{ github.sha }}"|' helm/ppa-dun/values.yaml
+          sed -i '/ppaDunFe:/,/port:/ s|tag: .*|tag: "${{ github.sha }}"|' helm/ppa-dun/values.yaml
 
       - name: Commit and push
         run: |
