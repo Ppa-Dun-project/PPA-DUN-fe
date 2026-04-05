@@ -4,31 +4,21 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'fe/**'
 
 env:
-  BUCKET: gs://v1-ppa-dun
+  PROJECT_ID: v1-mvp
+  REGION: us-east1
+  REPO: fe-prod
+  IMAGE: fe
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: fe/package-lock.json
-
-      - name: Install dependencies
-        working-directory: fe
-        run: npm ci
-
-      - name: Build
-        working-directory: fe
-        run: npm run build
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -38,16 +28,23 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Upload to GCS
-        ## remove original files and use new ones z
-        run: gsutil -m rsync -r -d fe/dist ${{ env.BUCKET }}
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build and push Docker image
+        working-directory: fe
+        run: |
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }} .
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.IMAGE }}:latest .
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.IMAGE }}:latest
 
   notify:
-    needs: build-and-deploy
+    needs: build-and-push
     if: always()
     uses: ./.github/workflows/discord-deploy-notify.yml
     with:
-      status: ${{ needs.build-and-deploy.result }}
+      status: ${{ needs.build-and-push.result }}
       service: Frontend (Prod)
     secrets:
       DISCORD_DEPLOY_WEBHOOK: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}
