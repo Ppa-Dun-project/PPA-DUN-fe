@@ -4,7 +4,7 @@ import { DRAFT_ROOM_ID } from "./runtimeConfig";
 
 export const TOKEN_KEY = "ppadun_token";
 
-const DRAFT_RESET_PATH = `/api/draft/picks?roomId=${encodeURIComponent(DRAFT_ROOM_ID)}`;
+const DRAFT_RESET_PATH = `/api/draft/reset?userId=${encodeURIComponent(DRAFT_ROOM_ID)}`;
 const DRAFT_RESET_URL = API_BASE_URL ? `${API_BASE_URL}${DRAFT_RESET_PATH}` : DRAFT_RESET_PATH;
 
 /** Read current auth state */

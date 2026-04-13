@@ -1,6 +1,6 @@
 type DraftConfig = {
   myTeamName?: string;
-  oppTeamName?: string;
+  oppTeamNames?: string[];
   leagueType?: string;
   budget?: number;
   rosterPlayers?: number;
