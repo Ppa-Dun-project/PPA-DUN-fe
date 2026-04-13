@@ -154,7 +154,7 @@ export default function MyTeamPage() {
         sort,
         page: 1,
         limit: 200,
-        roomId: DRAFT_ROOM_ID,
+        userId: DRAFT_ROOM_ID,
         myTeamId: MY_TEAM_ID,
       },
       controller.signal

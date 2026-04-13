@@ -65,7 +65,6 @@ type DraftConfigResponse = {
   budget: number;
   rosterPlayers: number;
   myTeamName: string;
-  oppTeamName: string;
   opponentsCount: number;
   oppTeamNames: string[];
 };
@@ -92,7 +91,7 @@ type DraftPlayersResponse = {
 };
 
 type DraftPicksResponse = {
-  roomId: string;
+  userId: string;
   items: DraftPick[];
 };
 
@@ -110,7 +109,6 @@ function toInitialConfig(local: DraftConfigLocal): DraftConfigResponse {
     budget: local.budget ?? 260,
     rosterPlayers: local.rosterPlayers ?? 12,
     myTeamName: (local.myTeamName ?? "My Team").trim() || "My Team",
-    oppTeamName: (local.oppTeamName ?? "Team A").trim() || "Team A",
     opponentsCount: local.opponentsCount ?? 5,
     oppTeamNames: local.oppTeamNames ?? [],
   };
@@ -259,14 +257,13 @@ export default function DraftPage() {
     apiGet<DraftBootstrapResponse>(
       "/api/draft/bootstrap",
       {
-        leagueType: localConfig.leagueType ?? "standard",
-        budget: localConfig.budget ?? 260,
-        rosterPlayers: localConfig.rosterPlayers ?? 12,
-        myTeamName: localConfig.myTeamName ?? "My Team",
-        oppTeamName: localConfig.oppTeamName ?? "Team A",
-        opponentsCount: localConfig.opponentsCount ?? 5,
-        oppTeamNames: (localConfig.oppTeamNames ?? []).join(","),
-        roomId: DRAFT_ROOM_ID,
+        leagueType: localConfig.leagueType,
+        budget: localConfig.budget,
+        rosterPlayers: localConfig.rosterPlayers,
+        myTeamName: localConfig.myTeamName,
+        oppTeamNames: localConfig.oppTeamNames?.join(",") || "",
+        opponentsCount: localConfig.opponentsCount,
+        userId: DRAFT_ROOM_ID,
       },
       controller.signal
     )
@@ -393,7 +390,7 @@ export default function DraftPage() {
   };
 
   const handleRemovePick = (pick: DraftPick) => {
-    void apiDelete<DraftPicksResponse>(`/api/draft/picks/${pick.playerId}`, { roomId: DRAFT_ROOM_ID })
+    void apiDelete<DraftPicksResponse>(`/api/draft/picks/${pick.playerId}`, { userId: DRAFT_ROOM_ID })
       .then((data) => setPicks(data.items))
       .catch((err: unknown) => {
         console.error(err);
@@ -415,7 +412,7 @@ export default function DraftPage() {
     void apiPost<DraftPicksResponse, DraftPickUpsertIn>(
       "/api/draft/picks",
       payload,
-      { roomId: DRAFT_ROOM_ID, rosterPlayers: rosterSlots }
+      { userId: DRAFT_ROOM_ID, rosterPlayers: rosterSlots }
     )
       .then((data) => {
         setPicks(data.items);
@@ -442,7 +439,7 @@ export default function DraftPage() {
     void apiPost<DraftPicksResponse, DraftPickUpsertIn>(
       "/api/draft/picks",
       payload,
-      { roomId: DRAFT_ROOM_ID, rosterPlayers: rosterSlots }
+      { userId: DRAFT_ROOM_ID, rosterPlayers: rosterSlots }
     )
       .then((data) => {
         setPicks(data.items);

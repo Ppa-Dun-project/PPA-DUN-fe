@@ -30,7 +30,6 @@ export type DraftPick = {
 
 export type DraftConfigLocal = {
   myTeamName?: string;
-  oppTeamName?: string;
   oppTeamNames?: string[];
   opponentsCount?: number;
   leagueType?: string;
