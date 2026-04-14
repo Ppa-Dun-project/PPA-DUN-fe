@@ -1,3 +1,6 @@
+// Login page: currently uses Google OAuth (see SignInCard for the real flow).
+// This page serves as a fallback/mock login and preserves the ?redirect param
+// so the user is sent back to their intended page after authentication.
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { mockLogin } from "../lib/auth";
 
@@ -5,6 +8,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
+  // After login, redirect to the page user originally wanted (default: /my-team).
   const redirect = params.get("redirect")
     ? decodeURIComponent(params.get("redirect") as string)
     : "/my-team";

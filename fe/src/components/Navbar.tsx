@@ -1,8 +1,13 @@
+// Sticky top navigation bar with responsive design:
+// - Desktop: horizontal nav links + Login/Logout button
+// - Mobile: hamburger icon that opens a slide-in drawer
+// Menu items are dynamically built based on auth state (e.g., "My Team" only shown when logged in).
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { logout as doLogout, useAuth } from "../lib/auth";
 import { useMemo, useState } from "react";
 import logo from "../assets/LOGO.png";
 
+// Helper: returns Tailwind classes for active/inactive nav links.
 function navItemClass(isActive: boolean) {
   return [
     "px-3 py-2 rounded-xl text-base font-black tracking-wide transition",
@@ -13,7 +18,7 @@ function navItemClass(isActive: boolean) {
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const authed = useAuth();
+  const authed = useAuth();             // Reactively tracks login state
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const redirectToLogin = () => {
