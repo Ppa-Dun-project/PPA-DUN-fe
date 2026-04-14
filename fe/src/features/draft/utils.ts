@@ -1,3 +1,5 @@
+// Draft utility functions: config management, roster slot logic,
+// filtering/sorting, budget calculations, and UI helper classes.
 import type {
   DraftConfigLocal,
   DraftPick,
@@ -7,6 +9,7 @@ import type {
   DraftTeam,
 } from "../../types/draft";
 
+// Read draft configuration from localStorage (saved by DraftSetupCard on HomePage).
 export function readDraftConfig(): DraftConfigLocal {
   try {
     const raw = localStorage.getItem("ppadun_draft_config");
@@ -43,11 +46,13 @@ export function readDraftConfig(): DraftConfigLocal {
   }
 }
 
+// Enforce roster size bounds: minimum 8, maximum 25 players.
 export function clampRosterSize(n?: number) {
   const value = n ?? 12;
   return Math.min(Math.max(value, 8), 25);
 }
 
+// Generate roster slot template (e.g., SP, RP, C, 1B... BENCH) based on roster size.
 export function buildSlotTemplate(count: number): string[] {
   const base = [
     "SP",
@@ -121,6 +126,7 @@ export function sortDraftPlayers(players: DraftPlayer[], sort: DraftSort) {
   }
 }
 
+// Color-coded Tailwind classes per team for the draft board UI.
 export function teamAccentClass(team: DraftTeam, index: number) {
   if (team.isMine) {
     return {
@@ -203,6 +209,7 @@ export function draftCostClass(authed: boolean) {
   return authed ? "text-white/80" : "blur-sm select-none text-white/50";
 }
 
+// Find the first open slot for a player: tries exact position match → UTIL → BENCH.
 export function findAvailableSlotIndex(
   teamId: string,
   desiredPos: string,
@@ -242,6 +249,7 @@ export function getAllowedPositionsForPlayer(
   );
 }
 
+// Sum bids for a team's picks and subtract from budget.
 export function calculateRemainingBudget(budget: number, myTeamId: string, picks: DraftPick[]) {
   const spent = picks
     .filter((pick) => pick.draftedByTeamId === myTeamId && typeof pick.bid === "number")
@@ -254,6 +262,7 @@ export function calculateCurrentRound(teamCount: number, rosterSlots: number, pi
   return Math.min(rosterSlots, Math.floor(totalPicks / teamCount) + 1);
 }
 
+// Check if a player is available, drafted by me ("mine"), or drafted by opponent ("taken").
 export function getPlayerDraftStatus(playerId: string, picks: DraftPick[], teams: DraftTeam[]) {
   const hit = picks.find((pick) => pick.playerId === playerId);
   if (!hit) {

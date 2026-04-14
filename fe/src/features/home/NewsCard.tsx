@@ -1,3 +1,5 @@
+// News card component: renders a single news item as a clickable external link.
+// Opens the article URL in a new tab. Used on both HomePage and NewsPage.
 import type { NewsItem } from "../../types/home";
 import { timeAgo } from "./utils";
 

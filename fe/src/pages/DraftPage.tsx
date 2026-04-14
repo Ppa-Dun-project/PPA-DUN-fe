@@ -1,4 +1,14 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+// Draft Room — the main feature page.
+// Displays: draft board (team rosters), player list with search/filter/sort,
+// player comparison panel, Add/Taken bid modals, and player info modal.
+//
+// Data flow:
+//   1. On mount, GET /api/draft/bootstrap fetches config, teams, picks, filter/sort options
+//   2. Player list is fetched from GET /api/draft/players (re-fetches on search/filter/sort change)
+//   3. Draft picks are mutated via POST/DELETE /api/draft/picks
+//
+// Auth-gated features: draft board, Add/Taken actions, player comparison, PPA-DUN values.
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import FadeIn from "../components/ui/FadeIn";
 import Skeleton from "../components/ui/Skeleton";
@@ -162,14 +172,16 @@ function resolveDraftSlotPosition(player: DraftPlayer): DraftPosition {
 export default function DraftPage() {
   const authed = useAuth();
   const [searchParams] = useSearchParams();
-  const draftRoomTopRef = useRef<HTMLDivElement | null>(null);
+  const draftRoomTopRef = useRef<HTMLDivElement | null>(null); // Scroll target after draft pick
 
+  // Read draft config from localStorage (set on HomePage's DraftSetupCard).
   const localConfig = useMemo(() => readDraftConfig(), []);
 
+  // Core draft state — populated by the bootstrap API call.
   const [config, setConfig] = useState<DraftConfigResponse>(() => toInitialConfig(localConfig));
-  const [teams, setTeams] = useState<DraftTeam[]>([]);
-  const [picks, setPicks] = useState<DraftPick[]>([]);
-  const [players, setPlayers] = useState<DraftPlayer[]>([]);
+  const [teams, setTeams] = useState<DraftTeam[]>([]);       // All teams in the draft room
+  const [picks, setPicks] = useState<DraftPick[]>([]);       // All draft picks made so far
+  const [players, setPlayers] = useState<DraftPlayer[]>([]); // Player list (filtered/sorted)
 
   const [query, setQuery] = useState(() => searchParams.get("query")?.trim() ?? "");
   const [position, setPosition] = useState<DraftPositionFilter>("ALL");
@@ -183,18 +195,22 @@ export default function DraftPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Player comparison state — user selects two players (A and B) to compare side-by-side.
   const [compareAId, setCompareAId] = useState<string | null>(null);
   const [compareBId, setCompareBId] = useState<string | null>(null);
   const [comparisonOpen, setComparisonOpen] = useState(false);
-  const [recommendationNoticeOpen, setRecommendationNoticeOpen] = useState(false);
-  const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
+  const [recommendationNoticeOpen, setRecommendationNoticeOpen] = useState(false); // V2 placeholder
+  const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);     // Player info modal
 
+  // Modal targets — which player the user clicked "Add" or "Taken" on.
   const [addTarget, setAddTarget] = useState<DraftPlayer | null>(null);
   const [takenTarget, setTakenTarget] = useState<DraftPlayer | null>(null);
 
+  // Derived values (memoized to avoid recalculation on every render).
   const rosterSlots = useMemo(() => clampRosterSize(config.rosterPlayers), [config.rosterPlayers]);
   const slotTemplate = useMemo(() => buildSlotTemplate(rosterSlots), [rosterSlots]);
 
+  // Quick lookup: playerId → DraftPlayer object.
   const playersById = useMemo<Record<string, DraftPlayer>>(
     () => Object.fromEntries(players.map((player) => [player.id, player])),
     [players]
@@ -202,6 +218,7 @@ export default function DraftPage() {
 
   const myTeam = teams.find((team) => team.isMine) ?? teams[0] ?? null;
 
+  // Calculate remaining budget for each team based on their picks.
   const remainingBudgetByTeam = useMemo(() => {
     const spentByTeam = new Map<string, number>();
     for (const pick of picks) {
@@ -251,6 +268,8 @@ export default function DraftPage() {
     setTakenTarget(null);
   };
 
+  // Bootstrap: fetch initial draft room data (config, teams, picks, filter options).
+  // Runs once on mount using the config saved in localStorage.
   useEffect(() => {
     const controller = new AbortController();
 
@@ -295,6 +314,8 @@ export default function DraftPage() {
     return () => controller.abort();
   }, [localConfig]);
 
+  // Fetch player list whenever search query, position filter, or sort changes.
+  // Previous in-flight request is aborted via AbortController.
   useEffect(() => {
     const controller = new AbortController();
     queueMicrotask(() => {
@@ -332,6 +353,7 @@ export default function DraftPage() {
     return () => controller.abort();
   }, [query, position, sort]);
 
+  // Toggle player selection for A/B comparison (max 2 players).
   const handleCompareToggle = (playerId: string) => {
     if (!authed) return;
     if (comparisonOpen) setComparisonOpen(false);
@@ -389,6 +411,7 @@ export default function DraftPage() {
     setProfilePlayerId(null);
   };
 
+  // Remove a draft pick via DELETE API and update local state.
   const handleRemovePick = (pick: DraftPick) => {
     void apiDelete<DraftPicksResponse>(`/api/draft/picks/${pick.playerId}`, { userId: DRAFT_ROOM_ID })
       .then((data) => setPicks(data.items))
@@ -398,6 +421,7 @@ export default function DraftPage() {
       });
   };
 
+  // "Add" action: draft a player to my team with the given bid amount.
   const handleAddFinish = (bid: number) => {
     if (!addTarget || !myTeam) return;
 
@@ -425,6 +449,7 @@ export default function DraftPage() {
       });
   };
 
+  // "Taken" action: record that an opponent team drafted this player.
   const handleTakenFinish = (draftedByTeamId: string, bid: number) => {
     if (!takenTarget) return;
 

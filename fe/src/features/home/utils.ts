@@ -1,3 +1,4 @@
+// Convert ISO timestamp to human-readable relative time (e.g., "3h ago", "2d ago").
 export function timeAgo(iso: string): string {
   const t = new Date(iso).getTime();
   const diff = Date.now() - t;

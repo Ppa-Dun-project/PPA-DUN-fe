@@ -1,3 +1,6 @@
+// TypeScript type definitions for the Draft feature.
+
+// A player available in the draft pool with stats and PPA-DUN valuation.
 export type DraftPlayer = {
   id: string;
   name: string;
@@ -11,6 +14,7 @@ export type DraftPlayer = {
   recommendedBid: number; // 추천/예상 드래프트 비용
 };
 
+// A team participating in the draft room.
 export type DraftTeam = {
   id: string;
   name: string;
@@ -19,6 +23,7 @@ export type DraftTeam = {
 
 export type DraftPickType = "mine" | "taken";
 
+// A single draft pick: which player was picked by which team, at what bid.
 export type DraftPick = {
   playerId: string;
   draftedByTeamId: string;
@@ -28,6 +33,7 @@ export type DraftPick = {
   type: DraftPickType;
 };
 
+// Draft setup config stored in localStorage (set on HomePage before entering draft room).
 export type DraftConfigLocal = {
   myTeamName?: string;
   oppTeamNames?: string[];

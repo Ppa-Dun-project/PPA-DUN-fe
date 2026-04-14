@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+// Landing page: hero banner with search, Latest News cards, and a right panel
+// that shows either SignInCard (guest) or DraftSetupCard (authenticated).
+// News data is hardcoded; clicking a card opens the external URL in a new tab.
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import FadeIn from "../components/ui/FadeIn";
-import Skeleton from "../components/ui/Skeleton";
 
 import type { NewsItem } from "../types/home";
 import NewsCard from "../features/home/NewsCard";
-import { apiGet } from "../lib/api";
 
 import DraftSetupCard from "../features/home/DraftSetupCard";
 import SignInCard from "../features/home/SignInCard";
@@ -14,50 +15,46 @@ import SignInCard from "../features/home/SignInCard";
 import baseballImg from "../assets/Baseball.jpg";
 import { useAuth } from "../lib/auth";
 
-type NewsListResponse = {
-  items: NewsItem[];
-  total: number;
-};
+// Hardcoded news data — no backend call needed.
+const STATIC_NEWS: NewsItem[] = [
+  {
+    id: "n1",
+    title: "6 MVP Awards, 4 HRs: Trout, Judge do battle in epic dinger duel",
+    summary: "Mike Trout and Aaron Judge each hit two homers as the Yankees edged the Angels in a memorable slugfest between two generational talents.",
+    publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    url: "https://www.mlb.com/news/mike-trout-aaron-judge-each-hit-two-homers-in-yankees-win-over-angels",
+    source: "MLB.com",
+  },
+  {
+    id: "n2",
+    title: "Top 100 MLB Players for the 2026 Season",
+    summary: "A comprehensive ranking of the best 100 players heading into the 2026 MLB season, from rising stars to established superstars.",
+    publishedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+    url: "https://www.justbaseball.com/mlb/top-100-mlb-players-ranking-2026/",
+    source: "Just Baseball",
+  },
+  {
+    id: "n3",
+    title: "MLB's average player salary rises to $5.34M",
+    summary: "MLB's average player salary rises to $5.34M, plus which team is barely spending more than a top player makes.",
+    publishedAt: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
+    url: "https://www.cbssports.com/mlb/news/mlb-average-player-salary-juan-soto-cody-bellinger-mets-guardians/",
+    source: "CBS Sports",
+  },
+];
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const authed = useAuth(); // ✅ reactive auth (updates immediately on login/logout)
+  const authed = useAuth(); // Reactive: re-renders on login/logout
 
-  const [newsLoading, setNewsLoading] = useState(true);
-  const [newsError, setNewsError] = useState<string | null>(null);
-  const [news, setNews] = useState<NewsItem[]>([]);
+  const [query, setQuery] = useState(""); // Hero search input
 
-  const [query, setQuery] = useState("");
-
+  // Navigate to Draft page with search query pre-filled.
   const onSearch = () => {
     const q = query.trim();
     if (!q) return;
-    // ✅ Draft is the new list page
     navigate(`/draft?query=${encodeURIComponent(q)}`);
   };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    queueMicrotask(() => {
-      setNewsLoading(true);
-      setNewsError(null);
-    });
-
-    apiGet<NewsListResponse>("/api/news", { limit: 3 }, controller.signal)
-      .then((data) => setNews(data.items))
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setNews([]);
-        setNewsError(err instanceof Error ? err.message : "Unknown error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setNewsLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-  }, []);
 
   return (
     <div className="space-y-8">
@@ -137,31 +134,9 @@ export default function HomePage() {
             </div>
 
             <div className="mt-5 grid grid-cols-1 gap-4">
-              {newsLoading && (
-                <>
-                  <Skeleton className="h-24" />
-                  <Skeleton className="h-24" />
-                  <Skeleton className="h-24" />
-                </>
-              )}
-
-              {!newsLoading && newsError && (
-                <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-                  Failed to load news: {newsError}
-                </div>
-              )}
-
-              {!newsLoading && !newsError && news.length === 0 && (
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
-                  No news yet.
-                </div>
-              )}
-
-              {!newsLoading &&
-                !newsError &&
-                news.map((item) => (
-                  <NewsCard key={item.id} item={item} />
-                ))}
+              {STATIC_NEWS.map((item) => (
+                <NewsCard key={item.id} item={item} />
+              ))}
             </div>
           </section>
         </FadeIn>

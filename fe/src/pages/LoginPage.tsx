@@ -1,3 +1,5 @@
+// Login page: uses Google OAuth for authentication.
+// Preserves the ?redirect param so the user is sent back to their intended page after login.
 import { useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiPost } from "../lib/api";
@@ -27,6 +29,7 @@ export default function LoginPage() {
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
   const error = params.get("error");
+  // After login, redirect to the page user originally wanted (default: /).
   const redirect = params.get("redirect")
     ? decodeURIComponent(params.get("redirect") as string)
     : "/";

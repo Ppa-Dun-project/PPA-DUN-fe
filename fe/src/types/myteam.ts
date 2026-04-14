@@ -1,3 +1,6 @@
+// TypeScript type definitions for the My Team page.
+
+// A player on the user's drafted team with stats and bid cost.
 export type MyTeamPlayer = {
   id: string;
   name: string;

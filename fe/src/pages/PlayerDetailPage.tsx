@@ -1,3 +1,5 @@
+// Player detail page — accessed via /draft/:id.
+// Fetches full player info (bio + stats) from GET /api/players/:id.
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiGet } from "../lib/api";
