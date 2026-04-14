@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import HomePage from "./pages/HomePage";
 import DraftPage from "./pages/DraftPage";
 import PlayerDetailPage from "./pages/PlayerDetailPage";
+import NewsPage from "./pages/NewsPage";
 import LoginPage from "./pages/LoginPage";
 import MyTeamPage from "./pages/MyTeamPage";
 
@@ -14,6 +15,9 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { index: true, element: <HomePage /> },
+
+      // News
+      { path: "news", element: <NewsPage /> },
 
       // Draft
       { path: "draft", element: <DraftPage /> },
