@@ -16,7 +16,6 @@ export function readDraftConfig(): DraftConfigLocal {
     if (!raw) {
       return {
         myTeamName: "My Team",
-        oppTeamName: "Team A",
         oppTeamNames: [],
         opponentsCount: 5,
         leagueType: "standard",
@@ -28,7 +27,6 @@ export function readDraftConfig(): DraftConfigLocal {
     const parsed = JSON.parse(raw) as DraftConfigLocal;
     return {
       myTeamName: parsed.myTeamName || "My Team",
-      oppTeamName: parsed.oppTeamName || "Team A",
       oppTeamNames: parsed.oppTeamNames ?? [],
       opponentsCount: parsed.opponentsCount ?? 5,
       leagueType: parsed.leagueType || "standard",
@@ -39,7 +37,6 @@ export function readDraftConfig(): DraftConfigLocal {
   } catch {
     return {
       myTeamName: "My Team",
-      oppTeamName: "Team A",
       oppTeamNames: [],
       opponentsCount: 5,
       leagueType: "standard",

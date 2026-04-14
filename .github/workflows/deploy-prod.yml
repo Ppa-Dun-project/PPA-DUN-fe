@@ -4,12 +4,17 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'fe/**'
 
 env:
-  BUCKET: gs://v1-ppa-dun
+  PROJECT_ID: v1-mvp
+  REGION: us-east1
+  REPO: fe-prod
+  IMAGE: fe
 
 jobs:
-  build-and-deploy:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -26,9 +31,16 @@ jobs:
         working-directory: fe
         run: npm ci
 
-      - name: Build
+      - name: Lint
         working-directory: fe
-        run: npm run build
+        run: npm run lint
+
+  build-and-push:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -38,16 +50,46 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Upload to GCS
-        ## remove original files and use new ones z
-        run: gsutil -m rsync -r -d fe/dist ${{ env.BUCKET }}
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build and push Docker image
+        working-directory: fe
+        run: |
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }} .
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.IMAGE }}:latest .
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.IMAGE }}:latest
+
+  update-helm:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout cloud repo
+        uses: actions/checkout@v4
+        with:
+          repository: Ppa-Dun-project/PPA-DUN-cloud
+          ref: infra/helm-chart-setup
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Update image tag
+        run: |
+          sed -i '/ppaDunFe:/,/port:/ s|tag: .*|tag: "${{ github.sha }}"|' helm/ppa-dun/values.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add helm/ppa-dun/values.yaml
+          git commit -m "deploy: update ppa-dun-fe image to ${{ github.sha }}"
+          git push
 
   notify:
-    needs: build-and-deploy
+    needs: update-helm
     if: always()
     uses: ./.github/workflows/discord-deploy-notify.yml
     with:
-      status: ${{ needs.build-and-deploy.result }}
+      status: ${{ needs.update-helm.result }}
       service: Frontend (Prod)
     secrets:
       DISCORD_DEPLOY_WEBHOOK: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}

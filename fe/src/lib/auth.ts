@@ -59,8 +59,8 @@ export function useAuth(): boolean {
 }
 
 // Store token and notify all subscribers.
-export function mockLogin(): void {
-  localStorage.setItem(TOKEN_KEY, "mock-token");
+export function login(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
   emit();
 }
 

@@ -36,7 +36,6 @@ export type DraftPick = {
 // Draft setup config stored in localStorage (set on HomePage before entering draft room).
 export type DraftConfigLocal = {
   myTeamName?: string;
-  oppTeamName?: string;
   oppTeamNames?: string[];
   opponentsCount?: number;
   leagueType?: string;

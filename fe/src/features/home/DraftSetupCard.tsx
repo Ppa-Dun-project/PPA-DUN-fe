@@ -34,7 +34,6 @@ export default function DraftSetupCard() {
 
   const [myTeam, setMyTeam] = useState<string>("");
   const [opponentsCount, setOpponentsCount] = useState<number>(0);
-  const [opponentTeams, setOpponentTeams] = useState<string[]>([]);
   const [leagueType, setLeagueType] = useState<LeagueType>("standard");
   const [customBudget, setCustomBudget] = useState<number>(260);
   const [customPlayers, setCustomPlayers] = useState<number>(12);
@@ -53,28 +52,12 @@ export default function DraftSetupCard() {
   const applyOpponentsCount = (next: number) => {
     const c = clamp(next, 0, 12);
     setOpponentsCount(c);
-
-    setOpponentTeams((prev) => {
-      const sliced = prev.slice(0, c);
-      if (sliced.length < c) {
-        return [...sliced, ...Array(c - sliced.length).fill("")];
-      }
-      return sliced;
-    });
-  };
-
-  const updateOpponentName = (idx: number, value: string) => {
-    setOpponentTeams((prev) => prev.map((v, i) => (i === idx ? value : v)));
   };
 
   const onStartDraft = () => {
-    const trimmedOppNames = opponentTeams.map((name) => name.trim());
-
     const draftConfig = {
       myTeamName: myTeam.trim(),
       opponentsCount,
-      oppTeamName: trimmedOppNames[0] ?? "",
-      oppTeamNames: trimmedOppNames,
       leagueType,
       budget: computed.budget,
       rosterPlayers: computed.players,
@@ -148,28 +131,8 @@ export default function DraftSetupCard() {
             </button>
           </div>
 
-          <div className="mt-1 text-xs text-white/50">
-            Enter how many opponents you&apos;ll draft with. We&apos;ll generate name fields below.
-          </div>
+          <div className="mt-1 text-xs text-white/50">Enter how many opponents you&apos;ll draft with.</div>
         </div>
-
-        {opponentsCount > 0 && (
-          <div className="space-y-3">
-            {opponentTeams.map((name, idx) => (
-              <div key={idx}>
-                <label className="text-xs font-extrabold text-white/70">
-                  Opponent team {idx + 1} name
-                </label>
-                <input
-                  value={name}
-                  onChange={(e) => updateOpponentName(idx, e.target.value)}
-                  placeholder={`e.g., Team ${String.fromCharCode(66 + idx)}`}
-                  className={INPUT_CLASS}
-                />
-              </div>
-            ))}
-          </div>
-        )}
 
         <div>
           <div className="text-xs font-extrabold text-white/70">League type</div>
