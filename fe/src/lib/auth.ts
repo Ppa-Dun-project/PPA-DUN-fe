@@ -50,8 +50,8 @@ export function useAuth(): boolean {
 }
 
 /** Mutations */
-export function mockLogin(): void {
-  localStorage.setItem(TOKEN_KEY, "mock-token");
+export function login(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
   emit();
 }
 
@@ -62,5 +62,3 @@ export function logout(): void {
   localStorage.removeItem(TOKEN_KEY);
   emit();
 }
-
-// Will be substituted with a real login API call in the future.
