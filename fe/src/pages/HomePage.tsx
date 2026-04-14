@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import FadeIn from "../components/ui/FadeIn";
-import Modal from "../components/ui/Modal";
 import Skeleton from "../components/ui/Skeleton";
 
 import type { NewsItem } from "../types/home";
@@ -29,7 +28,6 @@ export default function HomePage() {
   const [news, setNews] = useState<NewsItem[]>([]);
 
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<NewsItem | null>(null);
 
   const onSearch = () => {
     const q = query.trim();
@@ -132,9 +130,7 @@ export default function HomePage() {
 
               <button
                 className="text-xs font-bold text-white/60 hover:text-white transition"
-                onClick={() => {
-                  // TODO: If you add a dedicated news page later, navigate("/news")
-                }}
+                onClick={() => navigate("/news")}
               >
                 View all →
               </button>
@@ -164,7 +160,7 @@ export default function HomePage() {
               {!newsLoading &&
                 !newsError &&
                 news.map((item) => (
-                  <NewsCard key={item.id} item={item} onClick={() => setSelected(item)} />
+                  <NewsCard key={item.id} item={item} />
                 ))}
             </div>
           </section>
@@ -176,37 +172,6 @@ export default function HomePage() {
         </FadeIn>
       </div>
 
-      {/* News modal */}
-      <Modal
-        open={Boolean(selected)}
-        title={selected?.title}
-        onClose={() => setSelected(null)}
-        footer={
-          <>
-            {selected?.url && (
-              <a
-                href={selected.url}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-white/90 hover:bg-white/5 transition"
-              >
-                Open link
-              </a>
-            )}
-            <button
-              onClick={() => setSelected(null)}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-black hover:bg-white/90 transition"
-            >
-              Close
-            </button>
-          </>
-        }
-      >
-        <p className="text-sm leading-6">{selected?.summary}</p>
-        <div className="mt-4 text-xs text-white/50">
-          Published: {selected ? new Date(selected.publishedAt).toLocaleString() : ""}
-        </div>
-      </Modal>
     </div>
   );
 }
