@@ -14,7 +14,29 @@ env:
   IMAGE: fe
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: fe/package-lock.json
+
+      - name: Install dependencies
+        working-directory: fe
+        run: npm ci
+
+      - name: Lint
+        working-directory: fe
+        run: npm run lint
+
   build-and-push:
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
