@@ -1,8 +1,14 @@
+// API utility layer: thin wrappers around fetch for GET, POST, DELETE.
+// All API calls go through these helpers so we get consistent error handling
+// and automatic query-string building in one place.
+
+// Base URL comes from env var; defaults to relative path (works with Vite proxy in dev).
 const RAW_API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() ?? "";
 export const API_BASE_URL = RAW_API_BASE_URL.replace(/\/+$/, "");
 
 type QueryValue = string | number | boolean | null | undefined;
 
+// Constructs a full URL with query params, skipping null/undefined values.
 function buildUrl(path: string, params?: Record<string, QueryValue>) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const base = API_BASE_URL ? `${API_BASE_URL}${normalizedPath}` : normalizedPath;
@@ -18,6 +24,8 @@ function buildUrl(path: string, params?: Record<string, QueryValue>) {
   return queryString ? `${base}?${queryString}` : base;
 }
 
+// Core fetch wrapper: sends request, checks HTTP status, parses JSON.
+// Throws on non-2xx responses with the server's error message.
 async function requestJson<T>(
   input: RequestInfo | URL,
   init?: RequestInit
@@ -30,6 +38,7 @@ async function requestJson<T>(
   return (await res.json()) as T;
 }
 
+// GET request — accepts optional query params and AbortSignal for cancellation.
 export function apiGet<T>(
   path: string,
   params?: Record<string, QueryValue>,
@@ -38,6 +47,7 @@ export function apiGet<T>(
   return requestJson<T>(buildUrl(path, params), { signal });
 }
 
+// POST request — sends JSON body with optional query params.
 export function apiPost<TResponse, TBody>(
   path: string,
   body: TBody,
@@ -52,6 +62,7 @@ export function apiPost<TResponse, TBody>(
   });
 }
 
+// DELETE request — used for removing draft picks, resetting state, etc.
 export function apiDelete<T>(
   path: string,
   params?: Record<string, QueryValue>,

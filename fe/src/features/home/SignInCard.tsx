@@ -1,16 +1,65 @@
+import { useCallback, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { apiPost } from "../../lib/api";
+import { login } from "../../lib/auth";
 import logo from "../../assets/LOGO.png";
+
+const GOOGLE_CLIENT_ID =
+  "96806984873-n9in5glb21d6lni6acqnkdrcmk9b6b2c.apps.googleusercontent.com";
+
+type GoogleCredentialResponse = {
+  credential: string;
+};
+
+type AuthResponse = {
+  token: string;
+  email: string;
+  name: string;
+};
 
 export default function SignInCard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  const onGoogleSignIn = () => {
-    // TODO (Backend): Google OAuth 연동 시, 백엔드 엔드포인트로 이동하도록 변경
-    // 예) window.location.href = `${API_BASE_URL}/auth/google?redirect=${encodeURIComponent(location.pathname)}`
-    const redirect = encodeURIComponent(location.pathname + location.search);
-    navigate(`/login?redirect=${redirect}`);
-  };
+  const handleCredentialResponse = useCallback(
+    (response: GoogleCredentialResponse) => {
+      apiPost<AuthResponse, { credential: string }>("/api/auth/google/verify", {
+        credential: response.credential,
+      })
+        .then((data) => {
+          login(data.token);
+          const redirect = location.pathname + location.search;
+          navigate(redirect === "/login" ? "/" : redirect, { replace: true });
+        })
+        .catch((err) => {
+          console.error("Google login failed:", err);
+        });
+    },
+    [navigate, location]
+  );
+
+  useEffect(() => {
+    const google = (window as unknown as { google?: { accounts?: { id?: {
+      initialize: (config: { client_id: string; callback: (r: GoogleCredentialResponse) => void }) => void;
+      renderButton: (el: HTMLElement, config: Record<string, string>) => void;
+    } } } }).google;
+    if (!google?.accounts?.id || !googleBtnRef.current) return;
+
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+    });
+
+    google.accounts.id.renderButton(googleBtnRef.current, {
+      theme: "outline",
+      size: "large",
+      width: "100%",
+      text: "signin_with",
+      shape: "pill",
+      locale: "en",
+    });
+  }, [handleCredentialResponse]);
 
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
@@ -26,23 +75,15 @@ export default function SignInCard() {
           Draft players, track your team, and win.
         </div>
 
-        <button
-          onClick={onGoogleSignIn}
-          className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-black text-black transition hover:bg-white/90 hover:translate-y-[-1px] active:translate-y-0"
-        >
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/5">
-            G
-          </span>
-          Sign in with Google
-        </button>
+        <div ref={googleBtnRef} className="mt-6 w-full opacity-85 transition hover:opacity-100" />
 
         <div className="mt-8 w-full border-t border-white/10 pt-6 text-left">
           <div className="text-xs font-black text-white/70">What you get with PPA-DUN:</div>
           <ul className="mt-3 space-y-2 text-xs text-white/65">
-            <li>🤖 AI-powered player valuations</li>
-            <li>📊 Live draft with budget tracking</li>
-            <li>📰 Daily news & injury reports</li>
-            <li>🏆 Roster optimization tools</li>
+            <li>AI-powered player valuations</li>
+            <li>Live draft with budget tracking</li>
+            <li>Daily news & injury reports</li>
+            <li>Roster optimization tools</li>
           </ul>
         </div>
       </div>

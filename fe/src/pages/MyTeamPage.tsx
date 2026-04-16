@@ -1,3 +1,7 @@
+// My Team page (protected route — requires authentication).
+// Shows all players drafted to the user's team with search, position filter, and sort.
+// Displays budget tracking (total / spent / remaining).
+// Data fetched from GET /api/my-team/players; filter options from /api/my-team/filters/*.
 import { useEffect, useState } from "react";
 import FadeIn from "../components/ui/FadeIn";
 import Skeleton from "../components/ui/Skeleton";
@@ -97,17 +101,22 @@ export default function MyTeamPage() {
   const [error, setError] = useState<string | null>(null);
   const [players, setPlayers] = useState<MyTeamPlayer[]>([]);
 
+  // Filter and sort controls
   const [query, setQuery] = useState("");
   const [pos, setPos] = useState<MyTeamPosFilter>("ALL");
   const [sort, setSort] = useState<MyTeamSort>("score_desc");
 
+  // Dynamic filter/sort options fetched from backend
   const [positions, setPositions] = useState<MyTeamPosFilter[]>(DEFAULT_POSITIONS);
   const [sortOptions, setSortOptions] = useState<MyTeamSortOption[]>(DEFAULT_SORT_OPTIONS);
+
+  // Budget tracking — updated from API response
   const [remainingBudget, setRemainingBudget] = useState(260);
   const [spentBudget, setSpentBudget] = useState(0);
   const [totalBudget, setTotalBudget] = useState(260);
   const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
 
+  // Fetch filter options (positions, sort) on mount.
   useEffect(() => {
     const controller = new AbortController();
 
@@ -154,7 +163,7 @@ export default function MyTeamPage() {
         sort,
         page: 1,
         limit: 200,
-        roomId: DRAFT_ROOM_ID,
+        userId: DRAFT_ROOM_ID,
         myTeamId: MY_TEAM_ID,
       },
       controller.signal

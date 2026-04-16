@@ -1,10 +1,13 @@
+// Entry point: mounts the React app into the DOM.
+// StrictMode enables extra development warnings for detecting side effects.
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
+import { RouterProvider } from "react-router-dom";
+import { router } from "./router";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <RouterProvider router={router} />
   </React.StrictMode>
 );
