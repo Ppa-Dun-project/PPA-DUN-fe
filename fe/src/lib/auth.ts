@@ -1,74 +1,110 @@
-// Authentication module: manages JWT token in localStorage and provides
-// a reactive hook (useAuth) so components re-render on login/logout.
-//
-// Uses useSyncExternalStore (React 18+) to subscribe to localStorage changes
-// without needing Context or a state management library.
-
+// useSyncExternalStore: React 18+ 훅
+// - 외부 저장소(localStorage, window 이벤트 등)를 구독할 때 사용
+// - 저장소가 변경되면 자동으로 컴포넌트를 다시 렌더링
 import { useSyncExternalStore } from "react";
 import { API_BASE_URL } from "./api";
 import { DRAFT_ROOM_ID } from "./runtimeConfig";
 
+// localStorage에 저장할 토큰의 키 이름
+// - localStorage.getItem("ppadun_token")으로 접근
 export const TOKEN_KEY = "ppadun_token";
 
-// On logout, we also reset the draft state on the backend.
+// ── 로그아웃 시 백엔드의 드래프트 상태를 리셋할 URL ──
+// encodeURIComponent: 특수문자를 URL 안전하게 인코딩 (공백 → %20 등)
 const DRAFT_RESET_PATH = `/api/draft/picks?roomId=${encodeURIComponent(DRAFT_ROOM_ID)}`;
+// API_BASE_URL이 있으면 절대경로, 없으면 상대경로 사용
 const DRAFT_RESET_URL = API_BASE_URL ? `${API_BASE_URL}${DRAFT_RESET_PATH}` : DRAFT_RESET_PATH;
 
-// Check if user is currently authenticated by looking for the token.
+/**
+ * 현재 로그인 상태인지 확인
+ * - localStorage에 토큰이 있으면 true
+ * - Boolean(): 값을 불린으로 변환 (빈 문자열/null → false)
+ */
 export function isAuthed(): boolean {
   return Boolean(localStorage.getItem(TOKEN_KEY));
 }
 
-// --- Reactive auth store using the pub/sub pattern ---
-// Components subscribe via useAuth(); when login/logout calls emit(),
-// all subscribers are notified and re-render.
+// ── 발행/구독 패턴(Pub/Sub)으로 인증 상태 관리 ──
+// 로그인/로그아웃 시 모든 구독자(컴포넌트)에게 알림을 보내 자동 리렌더링
+
+// Listener: 알림을 받을 함수 타입 (인자도 반환값도 없는 함수)
 type Listener = () => void;
+
+// Set: 중복을 허용하지 않는 배열 (같은 함수가 여러 번 등록되는 것 방지)
 const listeners = new Set<Listener>();
 
+/**
+ * emit: "인증 상태가 변경됐다"고 모든 구독자에게 알림
+ * - for...of: 배열/Set을 순회하는 문법
+ */
 function emit() {
   for (const listener of listeners) listener();
 }
 
-// Also handles cross-tab sync: if another tab logs in/out, this tab updates too.
+/**
+ * onStorage: 다른 브라우저 탭에서 localStorage 변경 감지
+ * - StorageEvent: localStorage가 변경될 때 브라우저가 자동 발생시키는 이벤트
+ * - 현재 탭 변경은 발생하지 않음, 오직 다른 탭에서 변경됐을 때만
+ */
 function onStorage(e: StorageEvent) {
+  // 우리 토큰 키가 변경된 경우에만 알림
   if (e.key === TOKEN_KEY) emit();
 }
 
+/**
+ * subscribe: React 컴포넌트가 인증 상태 변화를 구독하는 함수
+ * - useSyncExternalStore의 첫 번째 인자로 사용됨
+ * - 구독 해제 함수를 반환 (컴포넌트 unmount 시 자동 호출)
+ */
 function subscribe(listener: Listener) {
   listeners.add(listener);
 
-  if (listeners.size === 1) {
-    window.addEventListener("storage", onStorage);
-  }
+  // 첫 구독자가 생길 때만 storage 이벤트 리스너 등록 (효율성)
+  if (listeners.size === 1) window.addEventListener("storage", onStorage);
 
+  // 구독 해제 함수 반환
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) {
-      window.removeEventListener("storage", onStorage);
-    }
+    // 마지막 구독자가 사라지면 이벤트 리스너도 해제 (메모리 절약)
+    if (listeners.size === 0) window.removeEventListener("storage", onStorage);
   };
 }
 
-// React hook: returns true/false and auto-updates when auth state changes.
+/**
+ * useAuth: 로그인 상태를 실시간으로 추적하는 React 훅
+ * - 컴포넌트에서 `const authed = useAuth()` 형태로 사용
+ * - 로그인/로그아웃 시 자동으로 컴포넌트가 다시 렌더링됨
+ *
+ * useSyncExternalStore의 3개 인자:
+ * 1. subscribe: 구독 함수
+ * 2. getSnapshot: 현재 상태 반환 (클라이언트)
+ * 3. getServerSnapshot: 서버 렌더링 시 기본값 (SSR 대응)
+ */
 export function useAuth(): boolean {
-  return useSyncExternalStore(
-    subscribe,
-    () => isAuthed(),     // Client snapshot
-    () => false           // Server snapshot (SSR fallback)
-  );
+  return useSyncExternalStore(subscribe, () => isAuthed(), () => false);
 }
 
-// Store token and notify all subscribers.
+/**
+ * login: 로그인 — 토큰을 저장하고 모든 구독자에게 알림
+ */
 export function login(token: string): void {
+  // localStorage.setItem: 브라우저 저장소에 데이터 저장 (탭을 닫아도 유지됨)
   localStorage.setItem(TOKEN_KEY, token);
-  emit();
+  emit();  // 모든 useAuth() 훅이 리렌더링됨
 }
 
-// Remove token, reset draft state on backend, and notify subscribers.
+/**
+ * logout: 로그아웃
+ * 1. 백엔드에 드래프트 리셋 요청 (응답 기다리지 않음)
+ * 2. localStorage에서 토큰 삭제
+ * 3. 모든 구독자에게 알림
+ */
 export function logout(): void {
-  void fetch(DRAFT_RESET_URL, { method: "DELETE" }).catch(() => {
-    // Ignore reset failures — clearing token takes priority.
-  });
+  // void: Promise를 반환하지만 결과를 무시하겠다는 명시적 표시
+  // .catch(() => {}): 리셋 실패해도 무시 (토큰 삭제가 우선)
+  void fetch(DRAFT_RESET_URL, { method: "DELETE" }).catch(() => {});
+
+  // localStorage.removeItem: 저장된 데이터 삭제
   localStorage.removeItem(TOKEN_KEY);
   emit();
 }

@@ -1,74 +1,34 @@
-// Login page: uses Google OAuth for authentication.
-// Preserves the ?redirect param so the user is sent back to their intended page after login.
-import { useCallback, useEffect, useRef } from "react";
+// useNavigate: 페이지 이동 함수
+// useSearchParams: URL의 쿼리 파라미터(?foo=bar)를 읽는 훅
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiPost } from "../lib/api";
-import { login } from "../lib/auth";
+// Google OAuth 공통 훅
+import { useGoogleSignIn } from "../lib/googleAuth";
 
-const GOOGLE_CLIENT_ID =
-  "96806984873-n9in5glb21d6lni6acqnkdrcmk9b6b2c.apps.googleusercontent.com";
-
-type GoogleCredentialResponse = {
-  credential: string;
-};
-
-type AuthResponse = {
-  id: number;
-  email: string;
-  name: string;
-};
-
-type GoogleAccountsId = {
-  initialize: (config: { client_id: string; callback: (r: GoogleCredentialResponse) => void }) => void;
-  renderButton: (el: HTMLElement, config: Record<string, string>) => void;
-};
-
+/**
+ * LoginPage: 로그인 전용 페이지 (/login)
+ * - URL의 ?redirect 파라미터를 읽어서 로그인 후 그 페이지로 돌아감
+ * - ?error 파라미터가 있으면 에러 메시지 표시
+ */
 export default function LoginPage() {
   const navigate = useNavigate();
+  // useSearchParams: [현재 파라미터, 파라미터 변경 함수] 반환
   const [params] = useSearchParams();
-  const googleBtnRef = useRef<HTMLDivElement>(null);
 
+  // 에러 파라미터 (예: /login?error=unauthorized)
   const error = params.get("error");
-  // After login, redirect to the page user originally wanted (default: /).
+
+  // redirect 파라미터 읽고 디코딩 (없으면 기본값 "/")
+  // decodeURIComponent: encodeURIComponent의 반대 (복원)
   const redirect = params.get("redirect")
     ? decodeURIComponent(params.get("redirect") as string)
     : "/";
 
-  const handleCredentialResponse = useCallback(
-    (response: GoogleCredentialResponse) => {
-      apiPost<AuthResponse, { credential: string }>("/api/auth/google/verify", {
-        credential: response.credential,
-      })
-        .then(() => {
-          // Store the Google credential as the auth token
-          login(response.credential);
-          navigate(redirect, { replace: true });
-        })
-        .catch((err) => {
-          console.error("Google login failed:", err);
-        });
-    },
-    [navigate, redirect]
-  );
-
-  useEffect(() => {
-    const google = (window as unknown as { google?: { accounts?: { id?: GoogleAccountsId } } }).google;
-    if (!google?.accounts?.id || !googleBtnRef.current) return;
-
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleCredentialResponse,
-    });
-
-    google.accounts.id.renderButton(googleBtnRef.current, {
-      theme: "outline",
-      size: "large",
-      width: "100%",
-      text: "signin_with",
-      shape: "pill",
-      locale: "en",
-    });
-  }, [handleCredentialResponse]);
+  // useGoogleSignIn: Google 로그인 버튼을 렌더링하고 인증 흐름 처리
+  // - 콜백은 로그인 성공 시 실행됨
+  // - replace: true → 히스토리 교체 (뒤로가기로 로그인 페이지 복귀 방지)
+  const buttonRef = useGoogleSignIn(() => {
+    navigate(redirect, { replace: true });
+  });
 
   return (
     <div className="mx-auto max-w-xl">
@@ -77,26 +37,26 @@ export default function LoginPage() {
           AUTH
         </div>
 
-        <h1 className="mt-4 text-2xl font-bold text-white md:text-3xl">
-          Login
-        </h1>
+        <h1 className="mt-4 text-2xl font-bold text-white md:text-3xl">Login</h1>
         <p className="mt-2 text-sm text-white/70">
           Sign in with your Google account to access all features.
         </p>
 
+        {/* 에러가 있으면 빨간색 알림 박스 표시 */}
+        {/* && 연산자: error가 truthy일 때만 뒤의 JSX 렌더링 */}
         {error && (
           <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
             Login failed: {error}
           </div>
         )}
 
-        <div ref={googleBtnRef} className="mt-6 w-full opacity-85 transition hover:opacity-100" />
+        {/* Google 로그인 버튼이 여기에 렌더링됨 (useGoogleSignIn이 처리) */}
+        <div ref={buttonRef} className="mt-6 w-full opacity-85 transition hover:opacity-100" />
 
+        {/* 로그인 후 이동할 경로 표시 (디버그/안내용) */}
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
           <div className="text-xs text-white/50">Redirect after login</div>
-          <div className="mt-1 break-all font-mono text-xs text-white/80">
-            {redirect}
-          </div>
+          <div className="mt-1 break-all font-mono text-xs text-white/80">{redirect}</div>
         </div>
       </div>
     </div>
