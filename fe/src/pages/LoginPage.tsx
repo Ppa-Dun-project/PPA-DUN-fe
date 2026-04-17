@@ -13,7 +13,7 @@ type GoogleCredentialResponse = {
 };
 
 type AuthResponse = {
-  token: string;
+  id: number;
   email: string;
   name: string;
 };
@@ -39,8 +39,9 @@ export default function LoginPage() {
       apiPost<AuthResponse, { credential: string }>("/api/auth/google/verify", {
         credential: response.credential,
       })
-        .then((data) => {
-          login(data.token);
+        .then(() => {
+          // Store the Google credential as the auth token
+          login(response.credential);
           navigate(redirect, { replace: true });
         })
         .catch((err) => {
