@@ -1,98 +1,85 @@
-// Landing page: hero banner with search, Latest News cards, and a right panel
-// that shows either SignInCard (guest) or DraftSetupCard (authenticated).
-// News data is hardcoded; clicking a card opens the external URL in a new tab.
+// useState: 컴포넌트 내부 상태 관리 훅
 import { useState } from "react";
+// useNavigate: 프로그래매틱 페이지 이동 훅
 import { useNavigate } from "react-router-dom";
 
-import FadeIn from "../components/ui/FadeIn";
+// 공통 UI 컴포넌트
+import FadeIn from "../components/ui/FadeIn";          // 페이드 인 애니메이션 래퍼
+import NewsCard from "../features/home/NewsCard";      // 뉴스 카드 컴포넌트
+import DraftSetupCard from "../features/home/DraftSetupCard"; // 드래프트 설정 카드 (로그인 시)
+import SignInCard from "../features/home/SignInCard";        // 로그인 유도 카드 (비로그인 시)
+// 뉴스 데이터 (하드코딩, HomePage와 NewsPage 공용)
+import { STATIC_NEWS } from "../features/home/newsData";
 
-import type { NewsItem } from "../types/home";
-import NewsCard from "../features/home/NewsCard";
-
-import DraftSetupCard from "../features/home/DraftSetupCard";
-import SignInCard from "../features/home/SignInCard";
-
+// 히어로 배너 배경 이미지
 import baseballImg from "../assets/Baseball.jpg";
+// 로그인 상태 실시간 추적 훅
 import { useAuth } from "../lib/auth";
 
-// Hardcoded news data — no backend call needed.
-const STATIC_NEWS: NewsItem[] = [
-  {
-    id: "n1",
-    title: "6 MVP Awards, 4 HRs: Trout, Judge do battle in epic dinger duel",
-    summary: "Mike Trout and Aaron Judge each hit two homers as the Yankees edged the Angels in a memorable slugfest between two generational talents.",
-    publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    url: "https://www.mlb.com/news/mike-trout-aaron-judge-each-hit-two-homers-in-yankees-win-over-angels",
-    source: "MLB.com",
-  },
-  {
-    id: "n2",
-    title: "Top 100 MLB Players for the 2026 Season",
-    summary: "A comprehensive ranking of the best 100 players heading into the 2026 MLB season, from rising stars to established superstars.",
-    publishedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    url: "https://www.justbaseball.com/mlb/top-100-mlb-players-ranking-2026/",
-    source: "Just Baseball",
-  },
-  {
-    id: "n3",
-    title: "MLB's average player salary rises to $5.34M",
-    summary: "MLB's average player salary rises to $5.34M, plus which team is barely spending more than a top player makes.",
-    publishedAt: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
-    url: "https://www.cbssports.com/mlb/news/mlb-average-player-salary-juan-soto-cody-bellinger-mets-guardians/",
-    source: "CBS Sports",
-  },
-];
-
+/**
+ * HomePage: 랜딩 페이지
+ * - 상단: 히어로 배너 + 검색창
+ * - 좌측: 최신 뉴스 카드 3개
+ * - 우측: 비로그인 → 로그인 유도 카드 / 로그인 → 드래프트 설정 카드
+ */
 export default function HomePage() {
   const navigate = useNavigate();
-  const authed = useAuth(); // Reactive: re-renders on login/logout
+  const authed = useAuth();                    // 로그인 상태 (실시간 반영)
+  const [query, setQuery] = useState("");      // 히어로 검색창 입력값
 
-  const [query, setQuery] = useState(""); // Hero search input
-
-  // Navigate to Draft page with search query pre-filled.
+  // 검색 실행 — 드래프트 페이지로 이동 (쿼리 URL 파라미터로 전달)
   const onSearch = () => {
     const q = query.trim();
-    if (!q) return;
+    if (!q) return;  // 빈 값이면 무시
+    // encodeURIComponent: URL에 안전하게 포함되도록 특수문자 인코딩
     navigate(`/draft?query=${encodeURIComponent(q)}`);
   };
 
   return (
+    // space-y-8: 세로 방향 자식 요소 사이 간격 2rem
     <div className="space-y-8">
-      {/* Hero */}
       <FadeIn>
+        {/* 히어로 배너 */}
         <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-black p-6 md:p-10">
+          {/* 배경 이미지 레이어 */}
           <div className="absolute inset-0">
             <img
               src={baseballImg}
               alt="Baseball background"
               className="h-full w-full object-cover object-right origin-right scale-80 brightness-145 saturate-110"
             />
+            {/* 그라데이션 오버레이 (왼쪽 검정 → 오른쪽 투명) */}
             <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-black/20" />
+            {/* 안쪽 그림자 효과 */}
             <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.75)]" />
           </div>
 
+          {/* 전경 콘텐츠 (텍스트 + 검색창) */}
           <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
+              {/* 작은 태그 */}
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs text-white/70">
                 PPA-Dun Project • TEAM BLACK
               </div>
+              {/* 메인 제목 */}
               <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-white md:text-5xl">
                 Build your roster with the Best Players.
               </h1>
+              {/* 부제 */}
               <p className="mt-3 max-w-2xl text-sm text-white/70 md:text-base">
                 Check the latest news, scout top players for your Fantasy.
               </p>
             </div>
 
-            {/* Search */}
+            {/* 검색창 */}
             <div className="w-full max-w-xl">
               <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/60 p-2 backdrop-blur">
                 <input
                   value={query}
+                  // onChange: 입력 시마다 상태 업데이트 (controlled input)
                   onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") onSearch();
-                  }}
+                  // onKeyDown: Enter 키로 검색 실행
+                  onKeyDown={(e) => e.key === "Enter" && onSearch()}
                   placeholder="Search players (e.g., Judge, Ohtani)..."
                   className="w-full bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-white/40"
                 />
@@ -112,9 +99,10 @@ export default function HomePage() {
         </section>
       </FadeIn>
 
-      {/* Grid: News + Right panel */}
+      {/* 뉴스 + 사이드 카드 2열 그리드 */}
+      {/* grid-cols-1: 기본 1열 / lg:grid-cols-3: 큰 화면에서 3열 */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Latest News */}
+        {/* 뉴스 섹션 (3열 중 2열 차지) */}
         <FadeIn className="lg:col-span-2" delayMs={60}>
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
             <div className="flex items-end justify-between gap-3">
@@ -124,7 +112,7 @@ export default function HomePage() {
                   Guest users can read news anytime.
                 </p>
               </div>
-
+              {/* "모두 보기" 버튼 → /news 페이지로 이동 */}
               <button
                 className="text-xs font-bold text-white/60 hover:text-white transition"
                 onClick={() => navigate("/news")}
@@ -133,20 +121,22 @@ export default function HomePage() {
               </button>
             </div>
 
+            {/* 뉴스 카드 3개 렌더링 (배열.map으로 반복) */}
             <div className="mt-5 grid grid-cols-1 gap-4">
               {STATIC_NEWS.map((item) => (
+                // key: React가 리스트 항목을 식별하기 위한 고유값 (필수)
                 <NewsCard key={item.id} item={item} />
               ))}
             </div>
           </section>
         </FadeIn>
 
-        {/* Right panel: guest => SignInCard, authed => DraftSetupCard */}
+        {/* 사이드 카드 (3열 중 1열) */}
         <FadeIn className="lg:col-span-1" delayMs={120}>
+          {/* 삼항 연산자로 로그인 상태에 따라 다른 카드 표시 */}
           {authed ? <DraftSetupCard /> : <SignInCard />}
         </FadeIn>
       </div>
-
     </div>
   );
 }

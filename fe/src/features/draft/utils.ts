@@ -1,215 +1,116 @@
-// Draft utility functions: config management, roster slot logic,
-// filtering/sorting, budget calculations, and UI helper classes.
-import type {
-  DraftConfigLocal,
-  DraftPick,
-  DraftPlayer,
-  DraftPositionFilter,
-  DraftSort,
-  DraftTeam,
-} from "../../types/draft";
+import type { DraftConfigLocal, DraftPick, DraftTeam } from "../../types/draft";
 
-// Read draft configuration from localStorage (saved by DraftSetupCard on HomePage).
+const DRAFT_CONFIG_KEY = "ppadun_draft_config";
+
+const DEFAULT_CONFIG: DraftConfigLocal = {
+  myTeamName: "My Team",
+  oppTeamNames: [],
+  opponentsCount: 5,
+  leagueType: "standard",
+  budget: 260,
+  rosterPlayers: 12,
+};
+
+const ROSTER_SLOT_TEMPLATE = [
+  "SP", "SP", "RP", "SP", "RP",
+  "C", "1B", "2B", "3B", "SS",
+  "OF", "OF", "OF", "UTIL", "UTIL",
+  "BENCH", "BENCH", "BENCH", "BENCH", "BENCH",
+  "BENCH", "BENCH", "BENCH", "BENCH", "BENCH",
+];
+
+const TEAM_PALETTE = [
+  { header: "border-rose-400/30 bg-rose-500/10 text-rose-200", slot: "border-rose-400/20 bg-rose-500/8", text: "text-rose-200" },
+  { header: "border-amber-400/30 bg-amber-500/10 text-amber-200", slot: "border-amber-400/20 bg-amber-500/8", text: "text-amber-200" },
+  { header: "border-violet-400/30 bg-violet-500/10 text-violet-200", slot: "border-violet-400/20 bg-violet-500/8", text: "text-violet-200" },
+  { header: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200", slot: "border-emerald-400/20 bg-emerald-500/8", text: "text-emerald-200" },
+  { header: "border-cyan-400/30 bg-cyan-500/10 text-cyan-200", slot: "border-cyan-400/20 bg-cyan-500/8", text: "text-cyan-200" },
+  { header: "border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200", slot: "border-fuchsia-400/20 bg-fuchsia-500/8", text: "text-fuchsia-200" },
+];
+
+const MY_TEAM_ACCENT = {
+  header: "border-sky-400/30 bg-sky-500/10 text-sky-200",
+  slot: "border-sky-400/20 bg-sky-500/8",
+  text: "text-sky-200",
+};
+
+const MLB_TEAM_CLASSES: Record<string, string> = {
+  NYY: "bg-sky-500/15 text-sky-200 border-sky-400/25",
+  LAD: "bg-blue-500/15 text-blue-200 border-blue-400/25",
+  NYM: "bg-indigo-500/15 text-indigo-200 border-indigo-400/25",
+  ATL: "bg-red-500/15 text-red-200 border-red-400/25",
+  PHI: "bg-rose-500/15 text-rose-200 border-rose-400/25",
+  HOU: "bg-orange-500/15 text-orange-200 border-orange-400/25",
+  LAA: "bg-amber-500/15 text-amber-200 border-amber-400/25",
+  CLE: "bg-violet-500/15 text-violet-200 border-violet-400/25",
+  KC: "bg-cyan-500/15 text-cyan-200 border-cyan-400/25",
+  SD: "bg-yellow-500/15 text-yellow-200 border-yellow-400/25",
+  TEX: "bg-emerald-500/15 text-emerald-200 border-emerald-400/25",
+  BAL: "bg-orange-500/15 text-orange-200 border-orange-400/25",
+  CIN: "bg-red-500/15 text-red-200 border-red-400/25",
+  SEA: "bg-teal-500/15 text-teal-200 border-teal-400/25",
+};
+
+/** Read draft config from localStorage; fall back to defaults on missing/invalid data. */
 export function readDraftConfig(): DraftConfigLocal {
   try {
-    const raw = localStorage.getItem("ppadun_draft_config");
-    if (!raw) {
-      return {
-        myTeamName: "My Team",
-        oppTeamNames: [],
-        opponentsCount: 5,
-        leagueType: "standard",
-        budget: 260,
-        rosterPlayers: 12,
-      };
-    }
+    const raw = localStorage.getItem(DRAFT_CONFIG_KEY);
+    if (!raw) return { ...DEFAULT_CONFIG };
 
     const parsed = JSON.parse(raw) as DraftConfigLocal;
     return {
-      myTeamName: parsed.myTeamName || "My Team",
-      oppTeamNames: parsed.oppTeamNames ?? [],
-      opponentsCount: parsed.opponentsCount ?? 5,
-      leagueType: parsed.leagueType || "standard",
-      budget: parsed.budget ?? 260,
-      rosterPlayers: parsed.rosterPlayers ?? 12,
+      myTeamName: parsed.myTeamName || DEFAULT_CONFIG.myTeamName,
+      oppTeamNames: parsed.oppTeamNames ?? DEFAULT_CONFIG.oppTeamNames,
+      opponentsCount: parsed.opponentsCount ?? DEFAULT_CONFIG.opponentsCount,
+      leagueType: parsed.leagueType || DEFAULT_CONFIG.leagueType,
+      budget: parsed.budget ?? DEFAULT_CONFIG.budget,
+      rosterPlayers: parsed.rosterPlayers ?? DEFAULT_CONFIG.rosterPlayers,
       createdAt: parsed.createdAt,
     };
   } catch {
-    return {
-      myTeamName: "My Team",
-      oppTeamNames: [],
-      opponentsCount: 5,
-      leagueType: "standard",
-      budget: 260,
-      rosterPlayers: 12,
-    };
+    return { ...DEFAULT_CONFIG };
   }
 }
 
-// Enforce roster size bounds: minimum 8, maximum 25 players.
+/** Enforce roster size bounds: 8 ≤ n ≤ 25. */
 export function clampRosterSize(n?: number) {
-  const value = n ?? 12;
-  return Math.min(Math.max(value, 8), 25);
+  return Math.min(Math.max(n ?? 12, 8), 25);
 }
 
-// Generate roster slot template (e.g., SP, RP, C, 1B... BENCH) based on roster size.
+/** Build roster slot layout for the given number of players. */
 export function buildSlotTemplate(count: number): string[] {
-  const base = [
-    "SP",
-    "SP",
-    "RP",
-    "SP",
-    "RP",
-    "C",
-    "1B",
-    "2B",
-    "3B",
-    "SS",
-    "OF",
-    "OF",
-    "OF",
-    "UTIL",
-    "UTIL",
-    "BENCH",
-    "BENCH",
-    "BENCH",
-    "BENCH",
-    "BENCH",
-    "BENCH",
-    "BENCH",
-    "BENCH",
-    "BENCH",
-    "BENCH",
-  ];
-  return base.slice(0, count);
+  return ROSTER_SLOT_TEMPLATE.slice(0, count);
 }
 
-export function filterDraftPlayers(
-  players: DraftPlayer[],
-  query: string,
-  position: DraftPositionFilter
-) {
-  const q = query.trim().toLowerCase();
-
-  return players.filter((player) => {
-    const matchesQuery =
-      !q || player.name.toLowerCase().includes(q) || player.team.toLowerCase().includes(q);
-
-    const matchesPos = position === "ALL" ? true : player.positions.includes(position);
-
-    return matchesQuery && matchesPos;
-  });
-}
-
-export function sortDraftPlayers(players: DraftPlayer[], sort: DraftSort) {
-  const copy = [...players];
-
-  switch (sort) {
-    case "score_desc":
-      return copy.sort((a, b) => b.ppaValue - a.ppaValue);
-    case "score_asc":
-      return copy.sort((a, b) => a.ppaValue - b.ppaValue);
-    case "cost_desc":
-      return copy.sort((a, b) => b.recommendedBid - a.recommendedBid);
-    case "cost_asc":
-      return copy.sort((a, b) => a.recommendedBid - b.recommendedBid);
-    case "avg_desc":
-      return copy.sort((a, b) => (b.avg ?? 0) - (a.avg ?? 0));
-    case "hr_desc":
-      return copy.sort((a, b) => (b.hr ?? 0) - (a.hr ?? 0));
-    case "rbi_desc":
-      return copy.sort((a, b) => (b.rbi ?? 0) - (a.rbi ?? 0));
-    case "sb_desc":
-      return copy.sort((a, b) => (b.sb ?? 0) - (a.sb ?? 0));
-    default:
-      return copy;
-  }
-}
-
-// Color-coded Tailwind classes per team for the draft board UI.
+/** Team color classes for the draft board. My team uses sky palette; others rotate. */
 export function teamAccentClass(team: DraftTeam, index: number) {
-  if (team.isMine) {
-    return {
-      header: "border-sky-400/30 bg-sky-500/10 text-sky-200",
-      slot: "border-sky-400/20 bg-sky-500/8",
-      text: "text-sky-200",
-    };
-  }
-
-  const palette = [
-    {
-      header: "border-rose-400/30 bg-rose-500/10 text-rose-200",
-      slot: "border-rose-400/20 bg-rose-500/8",
-      text: "text-rose-200",
-    },
-    {
-      header: "border-amber-400/30 bg-amber-500/10 text-amber-200",
-      slot: "border-amber-400/20 bg-amber-500/8",
-      text: "text-amber-200",
-    },
-    {
-      header: "border-violet-400/30 bg-violet-500/10 text-violet-200",
-      slot: "border-violet-400/20 bg-violet-500/8",
-      text: "text-violet-200",
-    },
-    {
-      header: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200",
-      slot: "border-emerald-400/20 bg-emerald-500/8",
-      text: "text-emerald-200",
-    },
-    {
-      header: "border-cyan-400/30 bg-cyan-500/10 text-cyan-200",
-      slot: "border-cyan-400/20 bg-cyan-500/8",
-      text: "text-cyan-200",
-    },
-    {
-      header: "border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200",
-      slot: "border-fuchsia-400/20 bg-fuchsia-500/8",
-      text: "text-fuchsia-200",
-    },
-  ];
-
-  return palette[index % palette.length];
+  return team.isMine ? MY_TEAM_ACCENT : TEAM_PALETTE[index % TEAM_PALETTE.length];
 }
 
+/** MLB team badge colors; falls back to neutral for unknown teams. */
 export function mlbTeamBadgeClass(team: string): string {
-  const t = team.toUpperCase();
-  const map: Record<string, string> = {
-    NYY: "bg-sky-500/15 text-sky-200 border-sky-400/25",
-    LAD: "bg-blue-500/15 text-blue-200 border-blue-400/25",
-    NYM: "bg-indigo-500/15 text-indigo-200 border-indigo-400/25",
-    ATL: "bg-red-500/15 text-red-200 border-red-400/25",
-    PHI: "bg-rose-500/15 text-rose-200 border-rose-400/25",
-    HOU: "bg-orange-500/15 text-orange-200 border-orange-400/25",
-    LAA: "bg-amber-500/15 text-amber-200 border-amber-400/25",
-    CLE: "bg-violet-500/15 text-violet-200 border-violet-400/25",
-    KC: "bg-cyan-500/15 text-cyan-200 border-cyan-400/25",
-    SD: "bg-yellow-500/15 text-yellow-200 border-yellow-400/25",
-    TEX: "bg-emerald-500/15 text-emerald-200 border-emerald-400/25",
-    BAL: "bg-orange-500/15 text-orange-200 border-orange-400/25",
-    CIN: "bg-red-500/15 text-red-200 border-red-400/25",
-    SEA: "bg-teal-500/15 text-teal-200 border-teal-400/25",
-  };
-
-  return map[t] ?? "bg-white/10 text-white/80 border-white/15";
+  return MLB_TEAM_CLASSES[team.toUpperCase()] ?? "bg-white/10 text-white/80 border-white/15";
 }
 
+/** Format batting average as ".300" (no leading zero). */
 export function formatAvg(avg: number | null) {
   if (!avg) return "-";
   return avg.toFixed(3).replace("0.", ".");
 }
 
+/** PPA value style — blurred for unauthenticated users. */
 export function valueClass(v: number, authed: boolean) {
   if (!authed) return "blur-sm select-none text-emerald-400/60";
   if (v >= 10) return "text-emerald-300 drop-shadow-[0_0_12px_rgba(16,185,129,0.55)]";
   return "text-emerald-400";
 }
 
+/** Draft cost style — blurred for unauthenticated users. */
 export function draftCostClass(authed: boolean) {
   return authed ? "text-white/80" : "blur-sm select-none text-white/50";
 }
 
-// Find the first open slot for a player: tries exact position match → UTIL → BENCH.
+/** Find first open slot: exact position → UTIL → BENCH. Returns -1 if full. */
 export function findAvailableSlotIndex(
   teamId: string,
   desiredPos: string,
@@ -217,75 +118,58 @@ export function findAvailableSlotIndex(
   picks: DraftPick[]
 ) {
   const occupied = new Set(
-    picks.filter((pick) => pick.draftedByTeamId === teamId).map((pick) => pick.slotIndex)
+    picks.filter((p) => p.draftedByTeamId === teamId).map((p) => p.slotIndex)
   );
 
-  for (let i = 0; i < slotTemplate.length; i += 1) {
-    if (occupied.has(i)) continue;
-    if (slotTemplate[i] === desiredPos) return i;
-  }
+  const findBy = (pred: (slot: string) => boolean) => {
+    for (let i = 0; i < slotTemplate.length; i += 1) {
+      if (!occupied.has(i) && pred(slotTemplate[i])) return i;
+    }
+    return -1;
+  };
 
-  for (let i = 0; i < slotTemplate.length; i += 1) {
-    if (occupied.has(i)) continue;
-    if (slotTemplate[i] === "UTIL") return i;
-  }
+  const exact = findBy((s) => s === desiredPos);
+  if (exact !== -1) return exact;
 
-  for (let i = 0; i < slotTemplate.length; i += 1) {
-    if (occupied.has(i)) continue;
-    if (slotTemplate[i] === "BENCH") return i;
-  }
+  const util = findBy((s) => s === "UTIL");
+  if (util !== -1) return util;
 
-  return -1;
+  return findBy((s) => s === "BENCH");
 }
 
-export function getAllowedPositionsForPlayer(
-  teamId: string,
-  player: DraftPlayer,
-  slotTemplate: string[],
-  picks: DraftPick[]
-) {
-  return player.positions.filter(
-    (pos) => findAvailableSlotIndex(teamId, pos, slotTemplate, picks) !== -1
-  );
-}
-
-// Sum bids for a team's picks and subtract from budget.
+/** Remaining budget for a team after subtracting all their bids. */
 export function calculateRemainingBudget(budget: number, myTeamId: string, picks: DraftPick[]) {
   const spent = picks
-    .filter((pick) => pick.draftedByTeamId === myTeamId && typeof pick.bid === "number")
-    .reduce((sum, pick) => sum + (pick.bid ?? 0), 0);
+    .filter((p) => p.draftedByTeamId === myTeamId && typeof p.bid === "number")
+    .reduce((sum, p) => sum + (p.bid ?? 0), 0);
   return Math.max(0, budget - spent);
 }
 
+/** Current draft round (1-based), capped at total rounds. */
 export function calculateCurrentRound(teamCount: number, rosterSlots: number, picks: DraftPick[]) {
-  const totalPicks = picks.length;
-  return Math.min(rosterSlots, Math.floor(totalPicks / teamCount) + 1);
+  return Math.min(rosterSlots, Math.floor(picks.length / teamCount) + 1);
 }
 
-// Check if a player is available, drafted by me ("mine"), or drafted by opponent ("taken").
+/** Check if player is available, drafted by me, or taken by opponent. */
 export function getPlayerDraftStatus(playerId: string, picks: DraftPick[], teams: DraftTeam[]) {
-  const hit = picks.find((pick) => pick.playerId === playerId);
-  if (!hit) {
-    return { kind: "available" as const };
-  }
+  const hit = picks.find((p) => p.playerId === playerId);
+  if (!hit) return { kind: "available" as const };
 
-  const team = teams.find((item) => item.id === hit.draftedByTeamId);
+  const team = teams.find((t) => t.id === hit.draftedByTeamId);
+  const bidLabel = hit.bid ?? "?";
+
   if (hit.type === "mine") {
     return {
       kind: "mine" as const,
-      label: `My Pick - $${hit.bid ?? "?"}`,
+      label: `My Pick - $${bidLabel}`,
       teamName: team?.name ?? "My Team",
     };
   }
 
   return {
     kind: "taken" as const,
-    label: `${team?.name ?? "Taken"} - $${hit.bid ?? "?"}`,
+    label: `${team?.name ?? "Taken"} - $${bidLabel}`,
     teamName: team?.name ?? "Taken",
   };
 }
 
-// Deprecated: frontend no longer seeds local mock picks. Kept as safe empty fallback.
-export function seedInitialPicks(): DraftPick[] {
-  return [];
-}
