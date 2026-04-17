@@ -11,7 +11,7 @@ export const TOKEN_KEY = "ppadun_token";
 
 // ── 로그아웃 시 백엔드의 드래프트 상태를 리셋할 URL ──
 // encodeURIComponent: 특수문자를 URL 안전하게 인코딩 (공백 → %20 등)
-const DRAFT_RESET_PATH = `/api/draft/picks?roomId=${encodeURIComponent(DRAFT_ROOM_ID)}`;
+const DRAFT_RESET_PATH = `/api/draft/reset?userId=${encodeURIComponent(DRAFT_ROOM_ID)}`;
 // API_BASE_URL이 있으면 절대경로, 없으면 상대경로 사용
 const DRAFT_RESET_URL = API_BASE_URL ? `${API_BASE_URL}${DRAFT_RESET_PATH}` : DRAFT_RESET_PATH;
 
