@@ -66,10 +66,9 @@ export default function DraftSetupCard() {
 
     localStorage.setItem("ppadun_draft_config", JSON.stringify(draftConfig));
 
-    const target = "/players";
+    const target = "/draft";
     if (!authed) {
-      const redirect = encodeURIComponent(target);
-      navigate(`/login?redirect=${redirect}`, { replace: true });
+      navigate(`/login?redirect=${encodeURIComponent(target)}`, { replace: true });
       return;
     }
     navigate(target);
