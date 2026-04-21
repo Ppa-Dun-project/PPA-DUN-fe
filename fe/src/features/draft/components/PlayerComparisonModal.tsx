@@ -264,8 +264,6 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
   const valuePerDollarA = playerA ? valuePerDollar(playerA) : null;
   const valuePerDollarB = playerB ? valuePerDollar(playerB) : null;
 
-  const vpdMax = Math.max(valuePerDollarA ?? 0, valuePerDollarB ?? 0, 1);
-
   // Determine efficiency winner + percentage difference
   const vpdWinner: "A" | "B" | "tie" | null = (() => {
     if (valuePerDollarA === null || valuePerDollarB === null) return null;
@@ -311,121 +309,142 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
 
         <div className="relative flex-1 space-y-5 overflow-y-auto p-5 [scrollbar-color:rgba(255,255,255,0.15)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb:hover]:bg-white/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar-track]:bg-transparent">
           <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
-            <div className="rounded-2xl border border-rose-300/25 bg-gradient-to-r from-rose-700/95 to-red-800/95 px-4 py-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-              <div className="text-2xl font-black">{playerA.name}</div>
-              <div className="mt-1 text-sm font-semibold text-rose-100">
-                {playerA.team} - {playerA.positions.join("/")}
+            <div
+              className={[
+                "relative rounded-2xl border bg-gradient-to-r from-rose-700/95 to-red-800/95 px-4 py-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition",
+                vpdWinner === "A"
+                  ? "border-emerald-300/70 shadow-[0_0_28px_rgba(16,185,129,0.35)] ring-2 ring-emerald-300/40"
+                  : "border-rose-300/25",
+              ].join(" ")}
+            >
+              {vpdWinner === "A" && (
+                <span className="absolute -top-2 left-3 rounded-full bg-emerald-400/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-950 shadow">
+                  Top Value
+                </span>
+              )}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-2xl font-black">{playerA.name}</div>
+                  <div className="mt-1 text-sm font-semibold text-rose-100">
+                    {playerA.team} - {playerA.positions.join("/")}
+                  </div>
+                  <div className="mt-2 text-sm font-bold text-emerald-300">Draft Cost ${playerA.recommendedBid}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-white/60">PPA-DUN</div>
+                  <div className="text-3xl font-black tabular-nums text-emerald-300">
+                    {Number.isFinite(playerA.ppaValue) ? playerA.ppaValue.toFixed(1) : "—"}
+                  </div>
+                </div>
               </div>
-              <div className="mt-2 text-sm font-bold text-emerald-300">Draft Cost ${playerA.recommendedBid}</div>
             </div>
 
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border-2 border-amber-300/75 bg-[#131a2b] text-base font-black text-amber-200">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border-2 border-white/30 bg-[#131a2b] text-base font-black text-white/80">
               VS
             </div>
 
-            <div className="rounded-2xl border border-amber-300/30 bg-gradient-to-r from-amber-700/95 to-orange-700/95 px-4 py-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-              <div className="text-2xl font-black">{playerB.name}</div>
-              <div className="mt-1 text-sm font-semibold text-amber-100">
-                {playerB.team} - {playerB.positions.join("/")}
+            <div
+              className={[
+                "relative rounded-2xl border bg-gradient-to-r from-sky-700/95 to-blue-800/95 px-4 py-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition",
+                vpdWinner === "B"
+                  ? "border-emerald-300/70 shadow-[0_0_28px_rgba(16,185,129,0.35)] ring-2 ring-emerald-300/40"
+                  : "border-sky-300/30",
+              ].join(" ")}
+            >
+              {vpdWinner === "B" && (
+                <span className="absolute -top-2 left-3 rounded-full bg-emerald-400/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-950 shadow">
+                  Top Value
+                </span>
+              )}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-2xl font-black">{playerB.name}</div>
+                  <div className="mt-1 text-sm font-semibold text-sky-100">
+                    {playerB.team} - {playerB.positions.join("/")}
+                  </div>
+                  <div className="mt-2 text-sm font-bold text-emerald-300">Draft Cost ${playerB.recommendedBid}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-white/60">PPA-DUN</div>
+                  <div className="text-3xl font-black tabular-nums text-emerald-300">
+                    {Number.isFinite(playerB.ppaValue) ? playerB.ppaValue.toFixed(1) : "—"}
+                  </div>
+                </div>
               </div>
-              <div className="mt-2 text-sm font-bold text-emerald-300">Draft Cost ${playerB.recommendedBid}</div>
             </div>
           </div>
 
-          {/* HIGHLIGHT: Value per PPA-DUN Dollar — key efficiency metric */}
+          {/* HIGHLIGHT: AI Recommendation — primary decision-support block */}
           <section className="relative overflow-hidden rounded-2xl border-2 border-emerald-400/60 bg-gradient-to-br from-emerald-900/40 via-[#0a2a1f] to-[#061812] p-5 shadow-[0_0_40px_rgba(16,185,129,0.18)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.18),transparent_60%)]" />
 
-            <div className="relative flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.2em] text-emerald-300">
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-400/20 text-base font-black text-emerald-200">$</span>
-                  Value per PPA-DUN Dollar
-                </div>
-                <div className="mt-1.5 text-sm font-bold text-white/65">Higher = better draft-cost efficiency</div>
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="text-base font-black uppercase tracking-[0.2em] text-emerald-200">
+                AI Recommendation
               </div>
-              {vpdEdgePercent !== null && vpdWinner !== "tie" && (
-                <div className="rounded-full border border-emerald-300/40 bg-emerald-500/15 px-4 py-1.5 text-sm font-black text-emerald-200">
-                  {vpdWinner === "A" ? playerA.name : playerB.name} +{vpdEdgePercent.toFixed(1)}% more efficient
-                </div>
+              {recommendation && !aiLoading && !aiError && (
+                <button
+                  type="button"
+                  onClick={() => fetchRecommendation()}
+                  className="rounded-full border border-emerald-300/40 bg-emerald-500/15 px-3 py-1 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-500/25"
+                >
+                  Regenerate
+                </button>
               )}
             </div>
 
-            <div className="relative mt-5 grid grid-cols-1 items-stretch gap-4 md:grid-cols-[1fr_auto_1fr]">
-              {/* Player A value */}
-              <div
-                className={[
-                  "rounded-2xl border px-4 py-3 transition",
-                  vpdWinner === "A"
-                    ? "border-emerald-300/60 bg-emerald-500/10 shadow-[0_0_24px_rgba(16,185,129,0.25)]"
-                    : "border-white/10 bg-white/5",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="truncate text-sm font-black text-rose-200">{playerA.name}</span>
-                  {vpdWinner === "A" && (
-                    <span className="rounded bg-emerald-400/25 px-1.5 py-0.5 text-[10px] font-black text-emerald-100">
-                      BEST
-                    </span>
-                  )}
+            <div className="relative mt-4 rounded-xl border border-emerald-400/25 bg-black/25 p-4 text-sm text-white/90">
+              {!aiInputsValid ? (
+                <div className="flex items-center gap-2 text-white/75">
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-amber-400/20 text-[11px] font-black text-amber-200">!</span>
+                  Missing PPA value or draft cost — cannot analyze this matchup.
                 </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-4xl font-black tabular-nums text-emerald-300">
-                    {valuePerDollarA === null ? "—" : valuePerDollarA.toFixed(3)}
-                  </span>
-                  <span className="text-[11px] font-bold text-white/45">per $</span>
+              ) : aiLoading ? (
+                <div className="flex items-center gap-2 text-emerald-100">
+                  <span className="h-3 w-3 animate-pulse rounded-full bg-emerald-300" />
+                  <span className="h-3 w-3 animate-pulse rounded-full bg-emerald-300 [animation-delay:150ms]" />
+                  <span className="h-3 w-3 animate-pulse rounded-full bg-emerald-300 [animation-delay:300ms]" />
+                  <span className="ml-1 text-xs font-bold text-emerald-100/80">Analyzing matchup...</span>
                 </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/40">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-rose-500 to-red-400"
-                    style={{ width: `${Math.max(6, ((valuePerDollarA ?? 0) / vpdMax) * 100)}%` }}
-                  />
+              ) : aiError ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-rose-200">
+                    <span className="grid h-5 w-5 place-items-center rounded-full bg-rose-400/20 text-[11px] font-black text-rose-200">X</span>
+                    <span className="font-bold">Couldn&apos;t generate recommendation.</span>
+                  </div>
+                  <div className="text-xs text-white/55">{aiError}</div>
+                  <button
+                    type="button"
+                    onClick={() => fetchRecommendation()}
+                    className="rounded-lg border border-emerald-300/40 bg-emerald-500/15 px-3 py-1 text-xs font-black text-emerald-100 transition hover:bg-emerald-500/25"
+                  >
+                    Retry
+                  </button>
                 </div>
-                <div className="mt-2 text-[11px] font-semibold text-white/45">
-                  {playerA.ppaValue.toFixed(1)} value / ${playerA.recommendedBid}
-                </div>
-              </div>
-
-              <div className="hidden md:grid place-items-center">
-                <div className="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-200">
-                  VS
-                </div>
-              </div>
-
-              {/* Player B value */}
-              <div
-                className={[
-                  "rounded-2xl border px-4 py-3 transition",
-                  vpdWinner === "B"
-                    ? "border-emerald-300/60 bg-emerald-500/10 shadow-[0_0_24px_rgba(16,185,129,0.25)]"
-                    : "border-white/10 bg-white/5",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="truncate text-sm font-black text-amber-200">{playerB.name}</span>
-                  {vpdWinner === "B" && (
-                    <span className="rounded bg-emerald-400/25 px-1.5 py-0.5 text-[10px] font-black text-emerald-100">
-                      BEST
-                    </span>
-                  )}
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-4xl font-black tabular-nums text-emerald-300">
-                    {valuePerDollarB === null ? "—" : valuePerDollarB.toFixed(3)}
-                  </span>
-                  <span className="text-[11px] font-bold text-white/45">per $</span>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/40">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-400"
-                    style={{ width: `${Math.max(6, ((valuePerDollarB ?? 0) / vpdMax) * 100)}%` }}
-                  />
-                </div>
-                <div className="mt-2 text-[11px] font-semibold text-white/45">
-                  {playerB.ppaValue.toFixed(1)} value / ${playerB.recommendedBid}
-                </div>
-              </div>
+              ) : recommendation ? (
+                (() => {
+                  const split = recommendation.match(/^(.+?[.!?])(\s+)([\s\S]*)$/);
+                  const first = split ? split[1] : recommendation;
+                  const rest = split ? split[3] : "";
+                  return (
+                    <div className="whitespace-pre-line leading-relaxed">
+                      <span className="font-black text-white">{first}</span>
+                      {rest ? <span className="text-white/85"> {rest}</span> : null}
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="text-white/55">Preparing analysis...</div>
+              )}
             </div>
+
+            {vpdEdgePercent !== null && vpdWinner !== "tie" && (
+              <div className="relative mt-3 text-xs font-semibold text-emerald-200/80">
+                {vpdWinner === "A" ? playerA.name : playerB.name} offers{" "}
+                <span className="font-black text-emerald-100">+{vpdEdgePercent.toFixed(1)}%</span> better
+                value per dollar.
+              </div>
+            )}
           </section>
 
           <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0d1223] to-[#090d19] p-4">
@@ -466,7 +485,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
                     <div className="mb-1 text-right text-xs font-black text-white">{row.displayB}</div>
                     <div className="h-3 rounded-full bg-white/10">
                       <div
-                        className="ml-auto h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-400"
+                        className="ml-auto h-full rounded-full bg-gradient-to-r from-sky-500 to-blue-400"
                         style={{ width: `${row.barB}%` }}
                       />
                     </div>
@@ -476,19 +495,25 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
             </div>
           </section>
 
-          <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0d1223] to-[#090d19] p-4">
-            <div className="text-sm font-black uppercase tracking-[0.15em] text-white">Position Flexibility</div>
-            <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <div className="mb-2 flex items-center justify-between text-xs font-black">
-                  <span className="text-rose-200">{playerA.name}</span>
-                  <span className="text-white/55">{playerA.positions.length} positions</span>
+          <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0d1223] to-[#090d19] p-5">
+            <div className="mb-4 text-sm font-black uppercase tracking-[0.15em] text-white">
+              Position Flexibility
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-rose-300/20 bg-rose-500/[0.06] p-4">
+                <div className="mb-3 flex items-baseline justify-between">
+                  <span className="truncate text-sm font-black text-rose-200">{playerA.name}</span>
+                  <span className="shrink-0 text-xs font-bold text-white/55">
+                    <span className="text-base font-black text-rose-100">{playerA.positions.length}</span> slot
+                    {playerA.positions.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {playerA.positions.map((pos) => (
                     <span
                       key={`a-${pos}`}
-                      className="rounded-lg border border-rose-300/25 bg-rose-500/10 px-2 py-1 text-xs font-black text-rose-100"
+                      className="rounded-md border border-rose-300/40 bg-rose-500/20 px-2.5 py-1 text-sm font-black text-rose-50"
                     >
                       {pos}
                     </span>
@@ -496,16 +521,19 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
                 </div>
               </div>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between text-xs font-black">
-                  <span className="text-amber-200">{playerB.name}</span>
-                  <span className="text-white/55">{playerB.positions.length} positions</span>
+              <div className="rounded-xl border border-sky-300/20 bg-sky-500/[0.06] p-4">
+                <div className="mb-3 flex items-baseline justify-between">
+                  <span className="truncate text-sm font-black text-sky-200">{playerB.name}</span>
+                  <span className="shrink-0 text-xs font-bold text-white/55">
+                    <span className="text-base font-black text-sky-100">{playerB.positions.length}</span> slot
+                    {playerB.positions.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {playerB.positions.map((pos) => (
                     <span
                       key={`b-${pos}`}
-                      className="rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1 text-xs font-black text-amber-100"
+                      className="rounded-md border border-sky-300/40 bg-sky-500/20 px-2.5 py-1 text-sm font-black text-sky-50"
                     >
                       {pos}
                     </span>
@@ -515,55 +543,6 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
             </div>
           </section>
 
-          <section className="rounded-2xl border border-fuchsia-500/40 bg-gradient-to-b from-[#241445] to-[#1a1130] p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-base font-black uppercase tracking-[0.15em] text-fuchsia-100">AI Recommendation</div>
-              {recommendation && !aiLoading && !aiError && (
-                <button
-                  type="button"
-                  onClick={() => fetchRecommendation()}
-                  className="rounded-full border border-fuchsia-300/30 bg-fuchsia-500/10 px-3 py-1 text-[11px] font-black text-fuchsia-100 transition hover:bg-fuchsia-500/20"
-                >
-                  Regenerate
-                </button>
-              )}
-            </div>
-
-            <div className="mt-2 rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/10 p-3 text-sm text-white/85">
-              {!aiInputsValid ? (
-                <div className="flex items-center gap-2 text-white/70">
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-amber-400/20 text-[11px] font-black text-amber-200">!</span>
-                  Missing PPA value or draft cost — cannot analyze this matchup.
-                </div>
-              ) : aiLoading ? (
-                <div className="flex items-center gap-2 text-fuchsia-100">
-                  <span className="h-3 w-3 animate-pulse rounded-full bg-fuchsia-300" />
-                  <span className="h-3 w-3 animate-pulse rounded-full bg-fuchsia-300 [animation-delay:150ms]" />
-                  <span className="h-3 w-3 animate-pulse rounded-full bg-fuchsia-300 [animation-delay:300ms]" />
-                  <span className="ml-1 text-xs font-bold text-fuchsia-100/80">Analyzing matchup...</span>
-                </div>
-              ) : aiError ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-rose-200">
-                    <span className="grid h-5 w-5 place-items-center rounded-full bg-rose-400/20 text-[11px] font-black text-rose-200">X</span>
-                    <span className="font-bold">Couldn&apos;t generate recommendation.</span>
-                  </div>
-                  <div className="text-xs text-white/55">{aiError}</div>
-                  <button
-                    type="button"
-                    onClick={() => fetchRecommendation()}
-                    className="rounded-lg border border-fuchsia-300/40 bg-fuchsia-500/15 px-3 py-1 text-xs font-black text-fuchsia-100 transition hover:bg-fuchsia-500/25"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : recommendation ? (
-                <div className="whitespace-pre-line leading-relaxed">{recommendation}</div>
-              ) : (
-                <div className="text-white/55">Preparing analysis...</div>
-              )}
-            </div>
-          </section>
         </div>
       </div>
     </div>
