@@ -40,22 +40,29 @@ export default function HomePage() {
   const [news, setNews] = useState<NewsItem[]>([]);
 
   // MLB RSS 피드를 rss2json 프록시로 가져와 최신 4개만 표시
+  // 페이지를 열어둔 동안에도 새로 올라오는 뉴스를 반영하기 위해 5분마다 polling
   useEffect(() => {
-    fetch(RSS_TO_JSON_API)
-      .then((r) => r.json())
-      .then((data: { items?: Rss2JsonItem[] }) => {
-        const items = (data.items ?? []).slice(0, 4).map<NewsItem>((it) => ({
-          id: it.guid,
-          title: it.title,
-          // RSS description은 HTML 포함 — 태그 제거해서 깨끗한 텍스트만 사용
-          summary: (it.description ?? "").replace(/<[^>]+>/g, "").trim(),
-          publishedAt: it.pubDate,
-          url: it.link,
-          source: "MLB.com",
-        }));
-        setNews(items);
-      })
-      .catch(() => setNews([]));
+    const fetchNews = () => {
+      fetch(RSS_TO_JSON_API)
+        .then((r) => r.json())
+        .then((data: { items?: Rss2JsonItem[] }) => {
+          const items = (data.items ?? []).slice(0, 4).map<NewsItem>((it) => ({
+            id: it.guid,
+            title: it.title,
+            // RSS description은 HTML 포함 — 태그 제거해서 깨끗한 텍스트만 사용
+            summary: (it.description ?? "").replace(/<[^>]+>/g, "").trim(),
+            publishedAt: it.pubDate,
+            url: it.link,
+            source: "MLB.com",
+          }));
+          setNews(items);
+        })
+        .catch(() => setNews([]));
+    };
+
+    fetchNews();
+    const interval = setInterval(fetchNews, 5 * 60 * 1000); // 5분마다
+    return () => clearInterval(interval);
   }, []);
 
   // 검색 실행 — 드래프트 페이지로 이동 (쿼리 URL 파라미터로 전달)
