@@ -59,9 +59,31 @@ const DEFAULT_POSITION_FILTERS: DraftPositionFilter[] = [
   "SS",
   "OF",
   "UTIL",
-  "SP",
-  "RP",
+  "P",
 ];
+
+// Match a player against a position filter.
+// - ALL   : always true
+// - UTIL  : any non-pitcher position (1B/2B/3B/SS/OF/C/UTIL all qualify)
+// - P     : any pitcher position (SP or RP)
+// - other : exact match (case-insensitive, defensive against empty arrays)
+function matchesPositionFilter(
+  playerPositions: readonly string[] | undefined,
+  filter: DraftPositionFilter
+): boolean {
+  if (filter === "ALL") return true;
+  if (!playerPositions || playerPositions.length === 0) return false;
+
+  const normalized = playerPositions.map((p) => p.toUpperCase());
+
+  if (filter === "UTIL") {
+    return normalized.some((p) => p !== "SP" && p !== "RP");
+  }
+  if (filter === "P") {
+    return normalized.some((p) => p === "SP" || p === "RP");
+  }
+  return normalized.includes(filter);
+}
 
 const DEFAULT_SORT_OPTIONS: { value: DraftSort; label: string }[] = [
   { value: "score_desc", label: "By Score" },
@@ -232,7 +254,7 @@ export default function DraftPage() {
     }
 
     if (position !== "ALL") {
-      result = result.filter((p) => p.positions.includes(position as DraftPosition));
+      result = result.filter((p) => matchesPositionFilter(p.positions, position));
     }
 
     const sorted = [...result].sort((a, b) => {
