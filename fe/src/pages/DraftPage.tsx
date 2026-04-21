@@ -316,11 +316,6 @@ export default function DraftPage() {
     return () => controller.abort();
   }, [localConfig]);
 
-  // Reset to first page when search/filter/sort changes.
-  useEffect(() => {
-    setPage(1);
-  }, [query, position, sort]);
-
   // Fetch player list whenever search query, position filter, sort, or page changes.
   // Previous in-flight request is aborted via AbortController.
   useEffect(() => {
@@ -535,7 +530,10 @@ export default function DraftPage() {
               <div className="text-xs font-extrabold text-white/70">Search</div>
               <input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search player name..."
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-white/40 focus:border-white/25"
               />
@@ -546,7 +544,10 @@ export default function DraftPage() {
                 label="Sort"
                 value={sort}
                 options={sortOptions}
-                onChange={setSort}
+                onChange={(next) => {
+                  setSort(next);
+                  setPage(1);
+                }}
               />
             </div>
           </div>
@@ -557,7 +558,10 @@ export default function DraftPage() {
               return (
                 <button
                   key={filterValue}
-                  onClick={() => setPosition(filterValue)}
+                  onClick={() => {
+                    setPosition(filterValue);
+                    setPage(1);
+                  }}
                   className={[
                     "rounded-full px-3 py-1 text-xs font-extrabold transition",
                     active
