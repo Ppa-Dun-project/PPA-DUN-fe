@@ -46,7 +46,7 @@ export default function HomePage() {
       fetch(RSS_TO_JSON_API)
         .then((r) => r.json())
         .then((data: { items?: Rss2JsonItem[] }) => {
-          const items = (data.items ?? []).slice(0, 4).map<NewsItem>((it) => ({
+          const items = (data.items ?? []).slice(0, 3).map<NewsItem>((it) => ({
             id: it.guid,
             title: it.title,
             // RSS description은 HTML 포함 — 태그 제거해서 깨끗한 텍스트만 사용
@@ -146,13 +146,13 @@ export default function HomePage() {
             <div className="flex items-end justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-white">Latest News</h2>
-                <p className="mt-1 text-sm text-white/60">
-                  Guest users can read news anytime.
+                <p className="mt-1 text-xs text-white/50">
+                  Fetched from ESPN MLB · refreshes every 5 minutes
                 </p>
               </div>
-              {/* "모두 보기" 버튼 → MLB.com 뉴스 페이지로 외부 이동 */}
+              {/* "모두 보기" 버튼 → ESPN MLB 뉴스 페이지로 외부 이동 */}
               <a
-                href="https://www.mlb.com/news"
+                href="https://www.espn.com/mlb/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-bold text-white/60 hover:text-white transition"
@@ -161,7 +161,7 @@ export default function HomePage() {
               </a>
             </div>
 
-            {/* 뉴스 카드 4개 렌더링 (배열.map으로 반복) */}
+            {/* 뉴스 카드 3개 렌더링 (배열.map으로 반복) */}
             <div className="mt-5 grid grid-cols-1 gap-4">
               {news.map((item) => (
                 // key: React가 리스트 항목을 식별하기 위한 고유값 (필수)
