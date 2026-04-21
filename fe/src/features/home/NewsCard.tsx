@@ -17,17 +17,15 @@ export default function NewsCard({ item }: Props) {
       href={item.url}
       target="_blank"
       rel="noreferrer"
-      className="group block w-full rounded-2xl border border-white/10 bg-white/5 p-5 text-left transition hover:bg-white/8 hover:-translate-y-[2px] active:translate-y-0"
+      className="group relative block w-full rounded-2xl border border-white/10 bg-white/5 p-5 text-left transition hover:bg-white/8 hover:-translate-y-[2px] active:translate-y-0"
     >
-      <div className="flex items-center justify-end">
-        {/* "Open →" 표시 (group-hover로 부모 호버 시 색 변경) */}
-        <div className="text-xs text-white/40 group-hover:text-white/60 transition">
-          Open →
-        </div>
+      {/* "Open →" 표시 — 우측 상단 코너에 절대 배치해서 제목이 카드 맨 위에 붙도록 함 */}
+      <div className="absolute right-5 top-5 text-xs text-white/40 group-hover:text-white/60 transition">
+        Open →
       </div>
 
-      {/* 뉴스 제목 */}
-      <h3 className="mt-2 text-base font-semibold text-white">{item.title}</h3>
+      {/* 뉴스 제목 — 우측의 Open 라벨과 겹치지 않도록 pr-12 여백 확보 */}
+      <h3 className="pr-12 text-base font-semibold text-white">{item.title}</h3>
       {/* 뉴스 요약 (line-clamp-2: 최대 2줄까지만 표시, 넘치면 ...) */}
       <p className="mt-2 line-clamp-2 text-sm text-white/70">{item.summary}</p>
     </a>
