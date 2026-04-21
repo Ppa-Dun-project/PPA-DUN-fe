@@ -212,7 +212,12 @@ export default function DraftPage() {
   const [takenTarget, setTakenTarget] = useState<DraftPlayer | null>(null);
 
   // Derived values (memoized to avoid recalculation on every render).
-  const rosterSlots = useMemo(() => clampRosterSize(config.rosterPlayers), [config.rosterPlayers]);
+  // Prefer localConfig.rosterPlayers (user's original choice) over backend's potentially
+  // clamped value — backend may enforce a higher minimum that overrides user's setting.
+  const rosterSlots = useMemo(
+    () => clampRosterSize(localConfig.rosterPlayers ?? config.rosterPlayers),
+    [localConfig.rosterPlayers, config.rosterPlayers]
+  );
   const slotTemplate = useMemo(() => buildSlotTemplate(rosterSlots), [rosterSlots]);
 
   // Client-side filter + sort + paginate (server returns full list).

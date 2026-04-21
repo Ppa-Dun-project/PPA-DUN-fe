@@ -7,7 +7,7 @@ type LeagueType = "standard" | "lite" | "custom";
 
 const presets = {
   standard: { label: "Standard", budget: 260, players: 12, opponents: 11, note: "$260 / 12 players / 12 teams" },
-  lite: { label: "Lite", budget: 200, players: 10, opponents: 7, note: "$200 / 10 players / 8 teams" },
+  lite: { label: "Lite", budget: 200, players: 10, opponents: 9, note: "$200 / 10 players / 10 teams" },
   custom: { label: "Custom", budget: 260, players: 12, opponents: 0, note: "Set your own" },
 } as const;
 
@@ -33,8 +33,15 @@ function parseIntOr0(s: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+// Robust select-all on focus: deferred to next frame so mouse click positioning
+// doesn't deselect. Works for both tab focus and mouse click.
+function selectAllOnFocus(e: React.FocusEvent<HTMLInputElement>) {
+  const target = e.currentTarget;
+  requestAnimationFrame(() => target.select());
+}
+
 const OPPONENTS_MAX = 12;
-const ROSTER_MIN = 8;
+const ROSTER_MIN = 1;
 const ROSTER_MAX = 12;
 const BUDGET_MIN = 1;
 
@@ -51,8 +58,8 @@ export default function DraftSetupCard() {
 
   // Derived, clamped numeric values — single source of truth for downstream logic
   const opponentsCount = clamp(parseIntOr0(opponentsCountStr), 0, OPPONENTS_MAX);
-  const customBudget = Math.max(1, parseIntOr0(customBudgetStr));
-  const customPlayers = clamp(parseIntOr0(customPlayersStr), 1, ROSTER_MAX);
+  const customBudget = Math.max(BUDGET_MIN, parseIntOr0(customBudgetStr));
+  const customPlayers = clamp(parseIntOr0(customPlayersStr), ROSTER_MIN, ROSTER_MAX);
 
   const computed = useMemo(() => {
     if (leagueType === "custom") {
@@ -65,23 +72,37 @@ export default function DraftSetupCard() {
     return presets[leagueType];
   }, [leagueType, customBudget, customPlayers]);
 
-  // Keep oppTeamNames array in sync with opponentsCount (during render, cheap)
-  if (oppTeamNames.length !== opponentsCount) {
-    if (opponentsCount < oppTeamNames.length) {
-      setOppTeamNames(oppTeamNames.slice(0, opponentsCount));
-    } else {
-      setOppTeamNames([
-        ...oppTeamNames,
-        ...Array<string>(opponentsCount - oppTeamNames.length).fill(""),
-      ]);
-    }
-  }
+  // Sync oppTeamNames array with a given count (keep existing entries, pad/trim)
+  const syncOppTeamNames = (count: number) => {
+    setOppTeamNames((prev) => {
+      if (count === prev.length) return prev;
+      if (count < prev.length) return prev.slice(0, count);
+      return [...prev, ...Array<string>(count - prev.length).fill("")];
+    });
+  };
+
+  // Central update: set input string + sync names synchronously so UI stays in lockstep
+  const updateOpponentsCount = (str: string) => {
+    setOpponentsCountStr(str);
+    const c = clamp(parseIntOr0(str), 0, OPPONENTS_MAX);
+    syncOppTeamNames(c);
+  };
+
+  // In Custom mode, Roster Players drives both roster size and opponent count
+  // (matching Standard/Lite pattern where "N players = N teams"). Typing here
+  // immediately creates N opponent name boxes.
+  const updateCustomPlayers = (str: string) => {
+    setCustomPlayersStr(str);
+    const p = clamp(parseIntOr0(str), ROSTER_MIN, ROSTER_MAX);
+    // X players → X opponents (so user sees X name boxes matching their input)
+    updateOpponentsCount(String(p));
+  };
 
   const applyLeagueType = (type: LeagueType) => {
     setLeagueType(type);
     // Custom preserves user's current opponents count; Standard/Lite apply preset
     if (type !== "custom") {
-      setOpponentsCountStr(String(presets[type].opponents));
+      updateOpponentsCount(String(presets[type].opponents));
     }
   };
 
@@ -144,7 +165,7 @@ export default function DraftSetupCard() {
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setOpponentsCountStr(String(clamp(opponentsCount - 1, 0, OPPONENTS_MAX)))}
+              onClick={() => updateOpponentsCount(String(clamp(opponentsCount - 1, 0, OPPONENTS_MAX)))}
               className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-black/30 text-white/80 hover:bg-white/5"
               aria-label="Decrease opponents"
             >
@@ -157,14 +178,14 @@ export default function DraftSetupCard() {
               min={0}
               max={OPPONENTS_MAX}
               value={opponentsCountStr}
-              onFocus={(e) => e.currentTarget.select()}
-              onChange={(e) => setOpponentsCountStr(e.target.value)}
+              onFocus={selectAllOnFocus}
+              onChange={(e) => updateOpponentsCount(e.target.value)}
               className={`${INPUT_CLASS} mt-0 no-spinner`}
             />
 
             <button
               type="button"
-              onClick={() => setOpponentsCountStr(String(clamp(opponentsCount + 1, 0, OPPONENTS_MAX)))}
+              onClick={() => updateOpponentsCount(String(clamp(opponentsCount + 1, 0, OPPONENTS_MAX)))}
               className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-black/30 text-white/80 hover:bg-white/5"
               aria-label="Increase opponents"
             >
@@ -211,7 +232,7 @@ export default function DraftSetupCard() {
               onClick={() => applyLeagueType("lite")}
             >
               <div className="text-sm font-black text-white">Lite</div>
-              <div className="mt-1 text-xs text-white/60">$200 / 10 players / 8 teams</div>
+              <div className="mt-1 text-xs text-white/60">$200 / 10 players / 10 teams</div>
             </button>
 
             <button
@@ -232,9 +253,9 @@ export default function DraftSetupCard() {
               <input
                 type="number"
                 inputMode="numeric"
-                min={1}
+                min={BUDGET_MIN}
                 value={customBudgetStr}
-                onFocus={(e) => e.currentTarget.select()}
+                onFocus={selectAllOnFocus}
                 onChange={(e) => setCustomBudgetStr(e.target.value)}
                 className={`${INPUT_CLASS_COMPACT} no-spinner`}
               />
@@ -247,11 +268,11 @@ export default function DraftSetupCard() {
               <input
                 type="number"
                 inputMode="numeric"
-                min={1}
+                min={ROSTER_MIN}
                 max={ROSTER_MAX}
                 value={customPlayersStr}
-                onFocus={(e) => e.currentTarget.select()}
-                onChange={(e) => setCustomPlayersStr(e.target.value)}
+                onFocus={selectAllOnFocus}
+                onChange={(e) => updateCustomPlayers(e.target.value)}
                 className={`${INPUT_CLASS_COMPACT} no-spinner`}
               />
             </div>

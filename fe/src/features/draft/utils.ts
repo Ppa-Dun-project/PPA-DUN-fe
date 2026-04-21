@@ -72,9 +72,9 @@ export function readDraftConfig(): DraftConfigLocal {
   }
 }
 
-/** Enforce roster size bounds: 8 ≤ n ≤ 25. */
+/** Enforce roster size bounds: 1 ≤ n ≤ 25. */
 export function clampRosterSize(n?: number) {
-  return Math.min(Math.max(n ?? 12, 8), 25);
+  return Math.min(Math.max(n ?? 12, 1), 25);
 }
 
 /** Build roster slot layout for the given number of players. */
