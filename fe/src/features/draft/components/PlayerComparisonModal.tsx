@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { apiPost } from "../../../lib/api";
 import type { DraftPlayer } from "../../../types/draft";
 
 type Props = {
@@ -120,7 +121,52 @@ function valuePerDollar(player: DraftPlayer) {
   return player.ppaValue / player.recommendedBid;
 }
 
+// Validate a player has numeric ppaValue and positive recommendedBid,
+// required for meaningful AI analysis.
+function hasValidAiInputs(player: DraftPlayer): boolean {
+  const ppa = player.ppaValue;
+  const bid = player.recommendedBid;
+  return (
+    Number.isFinite(ppa) &&
+    ppa > 0 &&
+    Number.isFinite(bid) &&
+    bid > 0
+  );
+}
+
+type AiRecommendRequest = {
+  playerA: {
+    name: string;
+    ppaValue: number;
+    recommendedBid: number;
+    stats: { avg: number | null; hr: number | null; rbi: number | null; sb: number | null };
+  };
+  playerB: AiRecommendRequest["playerA"];
+};
+
+type AiRecommendResponse = {
+  recommendation: string;
+};
+
+function toAiPayload(player: DraftPlayer) {
+  return {
+    name: player.name,
+    ppaValue: player.ppaValue,
+    recommendedBid: player.recommendedBid,
+    stats: {
+      avg: player.avg ?? null,
+      hr: player.hr ?? null,
+      rbi: player.rbi ?? null,
+      sb: player.sb ?? null,
+    },
+  };
+}
+
 export default function PlayerComparisonModal({ open, playerA, playerB, onClose }: Props) {
+  const [recommendation, setRecommendation] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
 
@@ -133,6 +179,64 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
+
+  // Valid-input guard for AI call. Derived so UI can show a hint without firing the request.
+  const aiInputsValid = useMemo(() => {
+    if (!playerA || !playerB) return false;
+    if (playerA.id === playerB.id) return false;
+    return hasValidAiInputs(playerA) && hasValidAiInputs(playerB);
+  }, [playerA, playerB]);
+
+  const fetchRecommendation = useCallback(
+    (signal?: AbortSignal) => {
+      if (!playerA || !playerB || !aiInputsValid) return;
+
+      setAiLoading(true);
+      setAiError(null);
+      setRecommendation(null);
+
+      const payload: AiRecommendRequest = {
+        playerA: toAiPayload(playerA),
+        playerB: toAiPayload(playerB),
+      };
+
+      apiPost<AiRecommendResponse, AiRecommendRequest>(
+        "/api/compare/ai-recommend",
+        payload,
+        undefined,
+        signal
+      )
+        .then((data) => {
+          if (signal?.aborted) return;
+          const text = data?.recommendation?.trim();
+          if (!text) {
+            setAiError("Empty response from AI service.");
+            return;
+          }
+          setRecommendation(text);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          setAiError(err instanceof Error ? err.message : "Failed to fetch recommendation");
+        })
+        .finally(() => {
+          if (!signal?.aborted) setAiLoading(false);
+        });
+    },
+    [playerA, playerB, aiInputsValid]
+  );
+
+  // Auto-fetch when modal opens or selected players change; abort previous in-flight.
+  // When inputs are invalid, the render guard shows a hint — no need to clear state here.
+  useEffect(() => {
+    if (!open || !aiInputsValid) return;
+    const controller = new AbortController();
+    // Defer to microtask so the effect body itself doesn't synchronously setState.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) fetchRecommendation(controller.signal);
+    });
+    return () => controller.abort();
+  }, [open, aiInputsValid, fetchRecommendation]);
 
   const rows = useMemo(() => {
     if (!playerA || !playerB) return [];
@@ -413,9 +517,52 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
           </section>
 
           <section className="rounded-2xl border border-fuchsia-500/40 bg-gradient-to-b from-[#241445] to-[#1a1130] p-4">
-            <div className="text-sm font-black text-fuchsia-100">AI Recommendation</div>
-            <div className="mt-2 rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/10 p-3 text-sm text-white/80">
-              Planned for development in V2.
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-black text-fuchsia-100">AI Recommendation</div>
+              {recommendation && !aiLoading && !aiError && (
+                <button
+                  type="button"
+                  onClick={() => fetchRecommendation()}
+                  className="rounded-full border border-fuchsia-300/30 bg-fuchsia-500/10 px-3 py-1 text-[11px] font-black text-fuchsia-100 transition hover:bg-fuchsia-500/20"
+                >
+                  Regenerate
+                </button>
+              )}
+            </div>
+
+            <div className="mt-2 rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/10 p-3 text-sm text-white/85">
+              {!aiInputsValid ? (
+                <div className="flex items-center gap-2 text-white/70">
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-amber-400/20 text-[11px] font-black text-amber-200">!</span>
+                  Missing PPA value or draft cost — cannot analyze this matchup.
+                </div>
+              ) : aiLoading ? (
+                <div className="flex items-center gap-2 text-fuchsia-100">
+                  <span className="h-3 w-3 animate-pulse rounded-full bg-fuchsia-300" />
+                  <span className="h-3 w-3 animate-pulse rounded-full bg-fuchsia-300 [animation-delay:150ms]" />
+                  <span className="h-3 w-3 animate-pulse rounded-full bg-fuchsia-300 [animation-delay:300ms]" />
+                  <span className="ml-1 text-xs font-bold text-fuchsia-100/80">Analyzing matchup...</span>
+                </div>
+              ) : aiError ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-rose-200">
+                    <span className="grid h-5 w-5 place-items-center rounded-full bg-rose-400/20 text-[11px] font-black text-rose-200">X</span>
+                    <span className="font-bold">Couldn&apos;t generate recommendation.</span>
+                  </div>
+                  <div className="text-xs text-white/55">{aiError}</div>
+                  <button
+                    type="button"
+                    onClick={() => fetchRecommendation()}
+                    className="rounded-lg border border-fuchsia-300/40 bg-fuchsia-500/15 px-3 py-1 text-xs font-black text-fuchsia-100 transition hover:bg-fuchsia-500/25"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : recommendation ? (
+                <div className="whitespace-pre-line leading-relaxed">{recommendation}</div>
+              ) : (
+                <div className="text-white/55">Preparing analysis...</div>
+              )}
             </div>
           </section>
         </div>
