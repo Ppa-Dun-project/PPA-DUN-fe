@@ -40,7 +40,7 @@ export default function HomePage() {
   const [news, setNews] = useState<NewsItem[]>([]);
 
   // MLB RSS 피드를 rss2json 프록시로 가져와 최신 4개만 표시
-  // 페이지를 열어둔 동안에도 새로 올라오는 뉴스를 반영하기 위해 5분마다 polling
+  // 페이지를 열어둔 동안에도 새로 올라오는 뉴스를 반영하기 위해 1시간마다 polling
   useEffect(() => {
     const fetchNews = () => {
       fetch(RSS_TO_JSON_API)
@@ -61,7 +61,7 @@ export default function HomePage() {
     };
 
     fetchNews();
-    const interval = setInterval(fetchNews, 5 * 60 * 1000); // 5분마다
+    const interval = setInterval(fetchNews, 60 * 60 * 1000); // 1시간마다
     return () => clearInterval(interval);
   }, []);
 
@@ -147,7 +147,7 @@ export default function HomePage() {
               <div>
                 <h2 className="text-lg font-bold text-white">Latest News</h2>
                 <p className="mt-1 text-xs text-white/50">
-                  Fetched from ESPN MLB · refreshes every 5 minutes
+                  Fetched from ESPN MLB · refreshes every hour
                 </p>
               </div>
               {/* "모두 보기" 버튼 → ESPN MLB 뉴스 페이지로 외부 이동 */}
