@@ -299,7 +299,6 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
         <div className="relative flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-5 py-3.5">
           <div>
             <div className="text-xl font-black text-white">Player Comparison</div>
-            <div className="text-xs font-semibold text-white/50">Side-by-side analysis from live draft data</div>
           </div>
           <button
             type="button"
@@ -478,7 +477,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
           </section>
 
           <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0d1223] to-[#090d19] p-4">
-            <div className="text-xs font-black uppercase tracking-wide text-white/45">Position Flexibility</div>
+            <div className="text-sm font-black uppercase tracking-[0.15em] text-white">Position Flexibility</div>
             <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <div className="mb-2 flex items-center justify-between text-xs font-black">
@@ -518,7 +517,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
 
           <section className="rounded-2xl border border-fuchsia-500/40 bg-gradient-to-b from-[#241445] to-[#1a1130] p-4">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-black text-fuchsia-100">AI Recommendation</div>
+              <div className="text-base font-black uppercase tracking-[0.15em] text-fuchsia-100">AI Recommendation</div>
               {recommendation && !aiLoading && !aiError && (
                 <button
                   type="button"
