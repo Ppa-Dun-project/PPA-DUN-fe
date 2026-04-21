@@ -2,18 +2,10 @@
 // - 외부 저장소(localStorage, window 이벤트 등)를 구독할 때 사용
 // - 저장소가 변경되면 자동으로 컴포넌트를 다시 렌더링
 import { useSyncExternalStore } from "react";
-import { API_BASE_URL } from "./api";
-import { DRAFT_ROOM_ID } from "./runtimeConfig";
 
 // localStorage에 저장할 토큰의 키 이름
 // - localStorage.getItem("ppadun_token")으로 접근
 export const TOKEN_KEY = "ppadun_token";
-
-// ── 로그아웃 시 백엔드의 드래프트 상태를 리셋할 URL ──
-// encodeURIComponent: 특수문자를 URL 안전하게 인코딩 (공백 → %20 등)
-const DRAFT_RESET_PATH = `/api/draft/reset?userId=${encodeURIComponent(DRAFT_ROOM_ID)}`;
-// API_BASE_URL이 있으면 절대경로, 없으면 상대경로 사용
-const DRAFT_RESET_URL = API_BASE_URL ? `${API_BASE_URL}${DRAFT_RESET_PATH}` : DRAFT_RESET_PATH;
 
 /**
  * 현재 로그인 상태인지 확인
@@ -95,16 +87,12 @@ export function login(token: string): void {
 
 /**
  * logout: 로그아웃
- * 1. 백엔드에 드래프트 리셋 요청 (응답 기다리지 않음)
- * 2. localStorage에서 토큰 삭제
- * 3. 모든 구독자에게 알림
+ * 1. localStorage에서 토큰 삭제
+ * 2. 모든 구독자에게 알림
+ *
+ * DB는 건드리지 않음 — 재로그인 시 드래프트 상태가 복원되어야 하므로.
  */
 export function logout(): void {
-  // void: Promise를 반환하지만 결과를 무시하겠다는 명시적 표시
-  // .catch(() => {}): 리셋 실패해도 무시 (토큰 삭제가 우선)
-  void fetch(DRAFT_RESET_URL, { method: "DELETE" }).catch(() => {});
-
-  // localStorage.removeItem: 저장된 데이터 삭제
   localStorage.removeItem(TOKEN_KEY);
   emit();
 }
