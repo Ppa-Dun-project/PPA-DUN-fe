@@ -28,6 +28,7 @@ import type {
 type DraftPosition = DraftPlayer["positions"][number];
 
 import {
+  DEFAULT_CONFIG,
   buildSlotTemplate,
   calculateCurrentRound,
   calculateRemainingBudget,
@@ -120,7 +121,7 @@ function toInitialConfig(local: DraftConfigLocal): DraftConfigResponse {
     budget: local.budget ?? 260,
     rosterPlayers: local.rosterPlayers ?? 12,
     myTeamName: (local.myTeamName ?? "My Team").trim() || "My Team",
-    opponentsCount: local.opponentsCount ?? 5,
+    opponentsCount: local.opponentsCount ?? DEFAULT_CONFIG.opponentsCount,
     oppTeamNames: local.oppTeamNames ?? [],
   };
 }
