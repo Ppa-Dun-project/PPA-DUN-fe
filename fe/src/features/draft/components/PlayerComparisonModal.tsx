@@ -188,7 +188,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
         onClick={onClose}
       />
 
-      <div className="relative mx-auto mt-5 w-[97%] max-w-6xl overflow-hidden rounded-3xl border border-fuchsia-400/30 bg-gradient-to-b from-[#141933] via-[#0d1224] to-[#080c18] shadow-[0_28px_100px_rgba(4,8,20,0.72)]">
+      <div className="relative mx-auto mt-5 flex max-h-[92vh] w-[97%] max-w-6xl flex-col overflow-hidden rounded-3xl border border-fuchsia-400/30 bg-gradient-to-b from-[#141933] via-[#0d1224] to-[#080c18] shadow-[0_28px_100px_rgba(4,8,20,0.72)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_12%,rgba(244,63,94,0.14),transparent_36%),radial-gradient(circle_at_85%_16%,rgba(245,158,11,0.12),transparent_38%)]" />
         <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(to_right,transparent,rgba(255,255,255,0.08),transparent)] [background-size:140px_100%]" />
 
@@ -206,7 +206,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
           </button>
         </div>
 
-        <div className="relative space-y-5 p-5">
+        <div className="relative flex-1 space-y-5 overflow-y-auto p-5 [scrollbar-color:rgba(255,255,255,0.15)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb:hover]:bg-white/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar-track]:bg-transparent">
           <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
             <div className="rounded-2xl border border-rose-300/25 bg-gradient-to-r from-rose-700/95 to-red-800/95 px-4 py-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
               <div className="text-2xl font-black">{playerA.name}</div>
@@ -235,14 +235,14 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
 
             <div className="relative flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300">
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-400/20 text-emerald-200">$</span>
+                <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.2em] text-emerald-300">
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-400/20 text-base font-black text-emerald-200">$</span>
                   Value per PPA-DUN Dollar
                 </div>
-                <div className="mt-1 text-xs font-semibold text-white/50">Higher = better draft-cost efficiency</div>
+                <div className="mt-1.5 text-sm font-bold text-white/65">Higher = better draft-cost efficiency</div>
               </div>
               {vpdEdgePercent !== null && vpdWinner !== "tie" && (
-                <div className="rounded-full border border-emerald-300/40 bg-emerald-500/15 px-3 py-1 text-[11px] font-black text-emerald-200">
+                <div className="rounded-full border border-emerald-300/40 bg-emerald-500/15 px-4 py-1.5 text-sm font-black text-emerald-200">
                   {vpdWinner === "A" ? playerA.name : playerB.name} +{vpdEdgePercent.toFixed(1)}% more efficient
                 </div>
               )}
@@ -328,7 +328,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
           <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0d1223] to-[#090d19] p-4">
             <div className="mb-3 grid grid-cols-[minmax(0,1fr)_360px_minmax(0,1fr)] gap-4 text-xs font-black uppercase tracking-wide text-white/45">
               <div className="text-left">{playerA.name}</div>
-              <div className="text-center">Stat</div>
+              <div className="text-center text-sm font-black tracking-[0.2em] text-white/90">STAT</div>
               <div className="text-right">{playerB.name}</div>
             </div>
 
@@ -350,7 +350,9 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
                       <span className={`${trendClass(row.trendA)} text-right tabular-nums`}>
                         {row.deltaA} {trendIcon(row.trendA)}
                       </span>
-                      <span className="text-center uppercase tracking-wide text-white/60">{row.label}</span>
+                      <span className="text-center text-sm font-black uppercase tracking-[0.15em] text-white">
+                        {row.label}
+                      </span>
                       <span className={`${trendClass(row.trendB)} text-left tabular-nums`}>
                         {trendIcon(row.trendB)} {row.deltaB}
                       </span>
