@@ -88,17 +88,17 @@ type DraftSortOptionResponse = {
 type DraftBootstrapResponse = {
   config: DraftConfigResponse;
   teams: DraftTeam[];
-  positionFilters: string[];
-  sortOptions: DraftSortOptionResponse[];
+  positionFilters?: string[];
+  sortOptions?: DraftSortOptionResponse[];
   picks: DraftPick[];
 };
 
 type DraftPlayersResponse = {
   items: DraftPlayer[];
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
+  page?: number;
+  limit?: number;
+  total?: number;
+  totalPages?: number;
 };
 
 type DraftPicksResponse = {
@@ -129,7 +129,9 @@ function cleanSortLabel(label: string) {
   return label.replace(/\s*\((asc|desc)\)\s*/gi, "").trim();
 }
 
-function normalizeSortOptions(raw: DraftSortOptionResponse[]) {
+function normalizeSortOptions(raw: DraftSortOptionResponse[] | undefined | null) {
+  if (!raw || !Array.isArray(raw)) return DEFAULT_SORT_OPTIONS;
+
   const preferred: DraftSort[] = [
     "score_desc",
     "cost_desc",
@@ -158,7 +160,8 @@ function normalizeSortOptions(raw: DraftSortOptionResponse[]) {
   return normalized.length > 0 ? normalized : DEFAULT_SORT_OPTIONS;
 }
 
-function normalizePositionFilters(raw: string[]): DraftPositionFilter[] {
+function normalizePositionFilters(raw: string[] | undefined | null): DraftPositionFilter[] {
+  if (!raw || !Array.isArray(raw)) return DEFAULT_POSITION_FILTERS;
   const allowed = new Set(DEFAULT_POSITION_FILTERS);
   const normalized = raw.filter((position): position is DraftPositionFilter =>
     allowed.has(position as DraftPositionFilter)
@@ -182,13 +185,12 @@ export default function DraftPage() {
   const [config, setConfig] = useState<DraftConfigResponse>(() => toInitialConfig(localConfig));
   const [teams, setTeams] = useState<DraftTeam[]>([]);       // All teams in the draft room
   const [picks, setPicks] = useState<DraftPick[]>([]);       // All draft picks made so far
-  const [players, setPlayers] = useState<DraftPlayer[]>([]); // Player list (filtered/sorted)
+  const [allPlayers, setAllPlayers] = useState<DraftPlayer[]>([]); // Full list from server
 
   const [query, setQuery] = useState(() => searchParams.get("query")?.trim() ?? "");
   const [position, setPosition] = useState<DraftPositionFilter>("ALL");
   const [sort, setSort] = useState<DraftSort>("score_desc");
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
 
   const [positionFilters, setPositionFilters] =
     useState<DraftPositionFilter[]>(DEFAULT_POSITION_FILTERS);
@@ -211,6 +213,54 @@ export default function DraftPage() {
   // Derived values (memoized to avoid recalculation on every render).
   const rosterSlots = useMemo(() => clampRosterSize(config.rosterPlayers), [config.rosterPlayers]);
   const slotTemplate = useMemo(() => buildSlotTemplate(rosterSlots), [rosterSlots]);
+
+  // Client-side filter + sort + paginate (server returns full list).
+  const filteredPlayers = useMemo(() => {
+    let result = allPlayers;
+
+    const q = query.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (p) => p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)
+      );
+    }
+
+    if (position !== "ALL") {
+      result = result.filter((p) => p.positions.includes(position as DraftPosition));
+    }
+
+    const sorted = [...result].sort((a, b) => {
+      switch (sort) {
+        case "cost_desc":
+          return (b.recommendedBid ?? 0) - (a.recommendedBid ?? 0);
+        case "avg_desc":
+          return (b.avg ?? 0) - (a.avg ?? 0);
+        case "hr_desc":
+          return (b.hr ?? 0) - (a.hr ?? 0);
+        case "rbi_desc":
+          return (b.rbi ?? 0) - (a.rbi ?? 0);
+        case "sb_desc":
+          return (b.sb ?? 0) - (a.sb ?? 0);
+        case "score_desc":
+        default:
+          return (b.ppaValue ?? 0) - (a.ppaValue ?? 0);
+      }
+    });
+
+    return sorted;
+  }, [allPlayers, query, position, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPlayers.length / PAGE_SIZE));
+
+  // Clamp page if filter reduces totalPages below current page (setState during render)
+  if (page > totalPages) {
+    setPage(1);
+  }
+
+  const players = useMemo(
+    () => filteredPlayers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredPlayers, page]
+  );
 
   // Quick lookup: playerId → DraftPlayer object.
   const playersById = useMemo<Record<string, DraftPlayer>>(
@@ -316,8 +366,7 @@ export default function DraftPage() {
     return () => controller.abort();
   }, [localConfig]);
 
-  // Fetch player list whenever search query, position filter, sort, or page changes.
-  // Previous in-flight request is aborted via AbortController.
+  // Fetch full player list once; filtering/sorting/pagination is handled client-side below.
   useEffect(() => {
     const controller = new AbortController();
     queueMicrotask(() => {
@@ -325,26 +374,15 @@ export default function DraftPage() {
       setError(null);
     });
 
-    apiGet<DraftPlayersResponse>(
-      "/api/draft/players",
-      {
-        query: query.trim() || undefined,
-        position,
-        sort,
-        page,
-        limit: PAGE_SIZE,
-      },
-      controller.signal
-    )
+    apiGet<DraftPlayersResponse>("/api/draft/players", {}, controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
-        setPlayers(data.items);
-        setTotalPages(Math.max(1, data.totalPages));
+        setAllPlayers(data.items ?? []);
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         console.error(err);
-        setPlayers([]);
+        setAllPlayers([]);
         setError(err instanceof Error ? err.message : "Unknown error");
       })
       .finally(() => {
@@ -354,7 +392,7 @@ export default function DraftPage() {
       });
 
     return () => controller.abort();
-  }, [query, position, sort, page]);
+  }, []);
 
   // Toggle player selection for A/B comparison (max 2 players).
   const handleCompareToggle = (playerId: string) => {
