@@ -2,14 +2,14 @@ import type { DraftConfigLocal, DraftPick, DraftTeam } from "../../types/draft";
 
 const DRAFT_CONFIG_KEY = "ppadun_draft_config";
 
-const DEFAULT_CONFIG: DraftConfigLocal = {
+export const DEFAULT_CONFIG = {
   myTeamName: "My Team",
-  oppTeamNames: [],
-  opponentsCount: 5,
+  oppTeamNames: [] as string[],
+  opponentsCount: 0,
   leagueType: "standard",
   budget: 260,
   rosterPlayers: 12,
-};
+} satisfies DraftConfigLocal;
 
 const ROSTER_SLOT_TEMPLATE = [
   "SP", "SP", "RP", "SP", "RP",
