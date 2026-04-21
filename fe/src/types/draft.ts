@@ -76,6 +76,7 @@ export type DraftSort =
  */
 export type DraftPositionFilter =
   | "ALL"      // 전체
+  | "P"        // 투수 전체 (SP + RP)
   | "SP"       // 선발 투수
   | "RP"       // 구원 투수
   | "C"        // 포수
