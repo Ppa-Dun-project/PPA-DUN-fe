@@ -45,8 +45,9 @@ import AddBidModal from "../features/draft/components/AddBidModal";
 import TakenBidModal from "../features/draft/components/TakenBidModal";
 import PlayerComparisonModal from "../features/draft/components/PlayerComparisonModal";
 import PlayerInfoModal from "../features/players/components/PlayerInfoModal";
+import Pagination from "../features/players/components/Pagination";
 
-const BACKEND_LIST_LIMIT = 200;
+const PAGE_SIZE = 30;
 
 const DEFAULT_POSITION_FILTERS: DraftPositionFilter[] = [
   "ALL",
@@ -186,6 +187,8 @@ export default function DraftPage() {
   const [query, setQuery] = useState(() => searchParams.get("query")?.trim() ?? "");
   const [position, setPosition] = useState<DraftPositionFilter>("ALL");
   const [sort, setSort] = useState<DraftSort>("score_desc");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const [positionFilters, setPositionFilters] =
     useState<DraftPositionFilter[]>(DEFAULT_POSITION_FILTERS);
@@ -199,7 +202,6 @@ export default function DraftPage() {
   const [compareAId, setCompareAId] = useState<string | null>(null);
   const [compareBId, setCompareBId] = useState<string | null>(null);
   const [comparisonOpen, setComparisonOpen] = useState(false);
-  const [recommendationNoticeOpen, setRecommendationNoticeOpen] = useState(false); // V2 placeholder
   const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);     // Player info modal
 
   // Modal targets — which player the user clicked "Add" or "Taken" on.
@@ -314,7 +316,12 @@ export default function DraftPage() {
     return () => controller.abort();
   }, [localConfig]);
 
-  // Fetch player list whenever search query, position filter, or sort changes.
+  // Reset to first page when search/filter/sort changes.
+  useEffect(() => {
+    setPage(1);
+  }, [query, position, sort]);
+
+  // Fetch player list whenever search query, position filter, sort, or page changes.
   // Previous in-flight request is aborted via AbortController.
   useEffect(() => {
     const controller = new AbortController();
@@ -329,14 +336,15 @@ export default function DraftPage() {
         query: query.trim() || undefined,
         position,
         sort,
-        page: 1,
-        limit: BACKEND_LIST_LIMIT,
+        page,
+        limit: PAGE_SIZE,
       },
       controller.signal
     )
       .then((data) => {
         if (controller.signal.aborted) return;
         setPlayers(data.items);
+        setTotalPages(Math.max(1, data.totalPages));
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -351,7 +359,7 @@ export default function DraftPage() {
       });
 
     return () => controller.abort();
-  }, [query, position, sort]);
+  }, [query, position, sort, page]);
 
   // Toggle player selection for A/B comparison (max 2 players).
   const handleCompareToggle = (playerId: string) => {
@@ -569,19 +577,6 @@ export default function DraftPage() {
         </section>
       </FadeIn>
 
-      <FadeIn delayMs={110}>
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => setRecommendationNoticeOpen(true)}
-            className="rounded-xl border border-fuchsia-400/35 bg-fuchsia-500/12 px-4 py-2 text-xs font-black text-fuchsia-100 transition hover:bg-fuchsia-500/20"
-            title="Recommendation popup will be connected later"
-          >
-            PPA-DUN Recommendation
-          </button>
-        </div>
-      </FadeIn>
-
       <FadeIn delayMs={120}>
         <section className="rounded-2xl border border-fuchsia-500/55 bg-[#1b1228] p-4 shadow-[0_0_22px_rgba(168,85,247,0.22)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -728,7 +723,7 @@ export default function DraftPage() {
                         : "hover:bg-white/5",
                     ].join(" ")}
                   >
-                    <div className="text-white/45">{idx + 1}</div>
+                    <div className="text-white/45">{(page - 1) * PAGE_SIZE + idx + 1}</div>
 
                     <div>
                       <button
@@ -835,6 +830,8 @@ export default function DraftPage() {
             Players and draft picks are loaded from backend APIs.
           </div>
         </section>
+
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} />
       </FadeIn>
 
       {addTarget && (
@@ -873,31 +870,6 @@ export default function DraftPage() {
         onClose={closePlayerInfo}
       />
 
-      {recommendationNoticeOpen && (
-        <div className="fixed inset-0 z-[72] grid place-items-center p-4">
-          <button
-            type="button"
-            aria-label="Close recommendation notice"
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setRecommendationNoticeOpen(false)}
-          />
-          <div className="relative w-[92%] max-w-sm rounded-3xl border border-fuchsia-400/30 bg-[#130f1d] p-5 shadow-2xl">
-            <div className="text-lg font-black text-white">PPA-DUN Recommendation</div>
-            <div className="mt-2 text-sm font-semibold text-fuchsia-100">
-              Planned for development in V2.
-            </div>
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setRecommendationNoticeOpen(false)}
-                className="rounded-full border border-fuchsia-300/30 bg-fuchsia-600 px-5 py-1.5 text-sm font-bold text-white transition hover:bg-fuchsia-500"
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
