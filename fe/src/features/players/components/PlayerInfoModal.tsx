@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../../lib/api";
+import { formatPpa } from "../../../utils/playerValue";
 
 type Props = {
   open: boolean;
@@ -200,7 +201,7 @@ export default function PlayerInfoModal({ open, playerId, onClose }: Props) {
               <div className="rounded-2xl border border-white/20 bg-black/20 px-5 py-3 text-center">
                 <div className="text-[11px] font-black uppercase tracking-wide text-white/60">PPA-DUN Value</div>
                 <div className="mt-1 text-3xl font-black text-emerald-300">
-                  {valueScore === null ? "-" : valueScore.toFixed(1)}
+                  {formatPpa(valueScore)}
                 </div>
               </div>
             </div>

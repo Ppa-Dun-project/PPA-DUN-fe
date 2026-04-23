@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiPost } from "../../../lib/api";
 import type { DraftPlayer } from "../../../types/draft";
+import { formatPpa } from "../../../utils/playerValue";
 
 type Props = {
   open: boolean;
@@ -333,7 +334,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
                 <div className="shrink-0 text-right">
                   <div className="text-[10px] font-black uppercase tracking-widest text-white/60">PPA-DUN</div>
                   <div className="text-3xl font-black tabular-nums text-emerald-300">
-                    {Number.isFinite(playerA.ppaValue) ? playerA.ppaValue.toFixed(1) : "—"}
+                    {formatPpa(playerA.ppaValue)}
                   </div>
                 </div>
               </div>
@@ -367,7 +368,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
                 <div className="shrink-0 text-right">
                   <div className="text-[10px] font-black uppercase tracking-widest text-white/60">PPA-DUN</div>
                   <div className="text-3xl font-black tabular-nums text-emerald-300">
-                    {Number.isFinite(playerB.ppaValue) ? playerB.ppaValue.toFixed(1) : "—"}
+                    {formatPpa(playerB.ppaValue)}
                   </div>
                 </div>
               </div>

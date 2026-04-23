@@ -17,8 +17,15 @@ export type GoogleCredentialResponse = {
 };
 
 // 백엔드가 반환하는 응답 타입 (우리 DB의 유저 정보)
-type AuthResponse = { id: number; email: string; name: string };
-
+type AuthResponse = {
+  access_token: string;
+  token_type: string;
+  user: {
+    id: number;
+    email: string;
+    name: string;
+  };
+};
 // Google의 전역 객체 타입 (window.google.accounts.id)
 // - Google Identity Services 스크립트가 index.html에서 로드됨
 type GoogleAccountsId = {
@@ -67,10 +74,8 @@ export function useGoogleSignIn(onSuccess: () => void) {
       apiPost<AuthResponse, { credential: string }>("/api/auth/google/verify", {
         credential: response.credential,
       })
-        .then(() => {
-          // 검증 성공: Google credential을 localStorage에 저장
-          login(response.credential);
-          // 성공 콜백 실행 (보통 페이지 이동)
+        .then((data) => {
+          login(data.access_token);
           onSuccess();
         })
         .catch((err) => console.error("Google login failed:", err));
