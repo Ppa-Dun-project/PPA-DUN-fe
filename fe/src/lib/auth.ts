@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 
 // localStorage에 저장할 토큰의 키 이름
 // - localStorage.getItem("ppadun_token")으로 접근
-export const TOKEN_KEY = "ppadun_token";
+export const TOKEN_KEY = "ppadun_JWT_token";
 
 /**
  * 현재 로그인 상태인지 확인

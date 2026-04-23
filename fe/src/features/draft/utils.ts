@@ -98,13 +98,6 @@ export function formatAvg(avg: number | null) {
   return avg.toFixed(3).replace("0.", ".");
 }
 
-/** PPA value style — blurred for unauthenticated users. */
-export function valueClass(v: number, authed: boolean) {
-  if (!authed) return "blur-sm select-none text-emerald-400/60";
-  if (v >= 10) return "text-emerald-300 drop-shadow-[0_0_12px_rgba(16,185,129,0.55)]";
-  return "text-emerald-400";
-}
-
 /** Draft cost style — blurred for unauthenticated users. */
 export function draftCostClass(authed: boolean) {
   return authed ? "text-white/80" : "blur-sm select-none text-white/50";

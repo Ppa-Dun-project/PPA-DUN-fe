@@ -11,9 +11,9 @@ import {
   filterMyTeam,
   formatAvg,
   sortMyTeam,
-  teamBadgeClass,
-  valueScoreClass,
 } from "../features/myteam/utils";
+import { mlbTeamBadgeClass } from "../features/draft/utils";
+import { formatPpa, ppaValueClass } from "../utils/playerValue";
 import { apiGet } from "../lib/api";
 import PlayerInfoModal from "../features/players/components/PlayerInfoModal";
 import { DRAFT_ROOM_ID } from "../lib/runtimeConfig";
@@ -226,7 +226,7 @@ export default function MyTeamPage() {
 
                   {/* MLB 팀 배지 (팀별 색상) */}
                   <div>
-                    <span className={`inline-flex items-center rounded-lg border px-2 py-1 text-xs font-extrabold ${teamBadgeClass(player.team)}`}>
+                    <span className={`inline-flex items-center rounded-lg border px-2 py-1 text-xs font-extrabold ${mlbTeamBadgeClass(player.team)}`}>
                       {player.team}
                     </span>
                   </div>
@@ -238,8 +238,8 @@ export default function MyTeamPage() {
                   <div className="font-semibold text-amber-300">{player.sb ?? "-"}</div>
 
                   {/* PPA-DUN 가치 점수 (10점 이상이면 발광 효과) */}
-                  <div className={`text-right text-sm font-black ${valueScoreClass(player.ppaValue)}`}>
-                    {player.ppaValue.toFixed(1)}
+                  <div className={`text-right text-sm font-black ${ppaValueClass(player.ppaValue)}`}>
+                    {formatPpa(player.ppaValue)}
                   </div>
                 </div>
               ))}

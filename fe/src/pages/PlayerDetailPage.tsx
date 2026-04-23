@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiGet } from "../lib/api";
+import { formatPpa } from "../utils/playerValue";
 
 type PlayerDetailResponse = {
   id: number;
@@ -104,7 +105,7 @@ export default function PlayerDetailPage() {
           </div>
         </div>
         <div className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-black text-white">
-          ValueScore {player.valueScore.toFixed(1)}
+          ValueScore {formatPpa(player.valueScore)}
         </div>
       </div>
 

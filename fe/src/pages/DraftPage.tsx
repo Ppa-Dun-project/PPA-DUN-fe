@@ -38,8 +38,8 @@ import {
   getPlayerDraftStatus,
   mlbTeamBadgeClass,
   readDraftConfig,
-  valueClass,
 } from "../features/draft/utils";
+import { formatPpa, ppaValueClass } from "../utils/playerValue";
 
 import DraftRoomBoard from "../features/draft/components/DraftRoomBoard";
 import AddBidModal from "../features/draft/components/AddBidModal";
@@ -829,8 +829,8 @@ export default function DraftPage() {
                     <div className="text-white/70">{player.rbi ?? "-"}</div>
                     <div className="font-semibold text-amber-300">{player.sb ?? "-"}</div>
 
-                    <div className={`font-black ${valueClass(player.ppaValue, authed)}`}>
-                      {player.ppaValue.toFixed(1)}
+                    <div className={`font-black ${ppaValueClass(player.ppaValue, { authed })}`}>
+                      {formatPpa(player.ppaValue)}
                     </div>
 
                     <div className="flex items-center gap-2">
