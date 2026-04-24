@@ -1,8 +1,8 @@
 /**
- * DraftPlayer: 드래프트 풀에 있는 선수 정보
- * - number | null: 숫자 또는 null (타자가 아닌 투수는 null 등)
+ * DraftPlayerPublic: 공개 /api/draft/players 가 돌려주는 선수 기본 정보
+ * - PPA-DUN 값과 추천 드래프트 비용은 포함되지 않음 (인증 사용자 전용 엔드포인트에서 별도 제공)
  */
-export type DraftPlayer = {
+export type DraftPlayerPublic = {
   id: string;
   name: string;
   team: string;                  // MLB 팀 약어 (예: "NYY")
@@ -11,8 +11,26 @@ export type DraftPlayer = {
   hr: number | null;             // 홈런
   rbi: number | null;            // 타점
   sb: number | null;             // 도루
+};
+
+/**
+ * DraftPlayerValue: 인증 필요 /api/draft/players/values 가 돌려주는 가치 정보
+ * - playerId 를 키로 DraftPlayerPublic 과 머지해서 DraftPlayer 를 구성
+ */
+export type DraftPlayerValue = {
+  playerId: string;
   ppaValue: number;              // PPA-DUN 가치 점수
   recommendedBid: number;        // 추천 드래프트 비용
+};
+
+/**
+ * DraftPlayer: UI 에서 사용하는 머지된 선수 타입
+ * - 비로그인 또는 값 조회 실패 시 ppaValue / recommendedBid 가 undefined 가 될 수 있음
+ * - 표시 시점에 formatPpa() / ?? 등으로 방어 필요
+ */
+export type DraftPlayer = DraftPlayerPublic & {
+  ppaValue?: number;
+  recommendedBid?: number;
 };
 
 /**

@@ -14,9 +14,8 @@ import {
 } from "../features/myteam/utils";
 import { mlbTeamBadgeClass } from "../features/draft/utils";
 import { formatPpa, ppaValueClass } from "../utils/playerValue";
-import { apiGet } from "../lib/api";
+import { apiGetAuth } from "../lib/api";
 import PlayerInfoModal from "../features/players/components/PlayerInfoModal";
-import { DRAFT_ROOM_ID } from "../lib/runtimeConfig";
 
 // 백엔드 GET /api/my-team/players 응답 타입
 type MyTeamPlayersResponse = {
@@ -72,9 +71,9 @@ export default function MyTeamPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    apiGet<MyTeamPlayersResponse>(
+    apiGetAuth<MyTeamPlayersResponse>(
       "/api/my-team/players",
-      { userId: DRAFT_ROOM_ID },  // 백엔드 가이드: roomId → userId로 통일
+      undefined,
       controller.signal
     )
       .then((data) => {
