@@ -3,24 +3,27 @@
 // player comparison panel, Add/Taken bid modals, and player info modal.
 //
 // Data flow:
-//   1. On mount, GET /api/draft/bootstrap fetches config, teams, picks, filter/sort options
-//   2. Player list is fetched from GET /api/draft/players (re-fetches on search/filter/sort change)
-//   3. Draft picks are mutated via POST/DELETE /api/draft/picks
+//   1. On mount, GET /api/draft/bootstrap (auth) fetches config, teams, picks
+//   2. Public GET /api/draft/players returns the full player list (no PPA value / bid)
+//   3. When authed, GET /api/draft/players/values (auth) returns per-player value info;
+//      merged client-side by playerId into DraftPlayer
+//   4. Draft picks are mutated via POST/DELETE /api/draft/picks (auth)
 //
-// Auth-gated features: draft board, Add/Taken actions, player comparison, PPA-DUN values.
+// Filtering, sorting, and pagination all run client-side on the merged list.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import FadeIn from "../components/ui/FadeIn";
 import Skeleton from "../components/ui/Skeleton";
 import Dropdown from "../components/ui/Dropdown";
 import { useAuth } from "../lib/auth";
-import { apiDelete, apiGet, apiPost } from "../lib/api";
-import { DRAFT_ROOM_ID } from "../lib/runtimeConfig";
+import { apiGet, apiGetAuth, apiPostAuth, apiDeleteAuth } from "../lib/api";
 
 import type {
   DraftConfigLocal,
   DraftPick,
   DraftPlayer,
+  DraftPlayerPublic,
+  DraftPlayerValue,
   DraftPositionFilter,
   DraftSort,
   DraftTeam,
@@ -103,25 +106,22 @@ type DraftConfigResponse = {
   oppTeamNames: string[];
 };
 
-type DraftSortOptionResponse = {
-  value: string;
-  label: string;
-};
-
+// 백엔드 /api/draft/bootstrap 응답 — config / teams / picks 세 가지만 돌려받음
+// (positionFilters / sortOptions 는 더 이상 서버에서 내려주지 않음; 프론트 상수 사용)
 type DraftBootstrapResponse = {
   config: DraftConfigResponse;
   teams: DraftTeam[];
-  positionFilters?: string[];
-  sortOptions?: DraftSortOptionResponse[];
   picks: DraftPick[];
 };
 
+// 공개 /api/draft/players — PPA 값 / 추천 bid 없이 전체 선수 목록만
 type DraftPlayersResponse = {
-  items: DraftPlayer[];
-  page?: number;
-  limit?: number;
-  total?: number;
-  totalPages?: number;
+  items: DraftPlayerPublic[];
+};
+
+// 인증 /api/draft/players/values — 로그인 사용자에게만 PPA 값과 추천 bid 를 playerId 별로 제공
+type DraftPlayerValuesResponse = {
+  items: DraftPlayerValue[];
 };
 
 type DraftPicksResponse = {
@@ -148,52 +148,24 @@ function toInitialConfig(local: DraftConfigLocal): DraftConfigResponse {
   };
 }
 
-function cleanSortLabel(label: string) {
-  return label.replace(/\s*\((asc|desc)\)\s*/gi, "").trim();
-}
-
-function normalizeSortOptions(raw: DraftSortOptionResponse[] | undefined | null) {
-  if (!raw || !Array.isArray(raw)) return DEFAULT_SORT_OPTIONS;
-
-  const preferred: DraftSort[] = [
-    "score_desc",
-    "cost_desc",
-    "avg_desc",
-    "hr_desc",
-    "rbi_desc",
-    "sb_desc",
-  ];
-
-  const byValue = new Map(raw.map((option) => [option.value, option]));
-  const seenLabels = new Set<string>();
-  const normalized: { value: DraftSort; label: string }[] = [];
-
-  for (const value of preferred) {
-    const option = byValue.get(value);
-    if (!option) continue;
-
-    const label = cleanSortLabel(option.label);
-    const key = label.toLowerCase();
-    if (seenLabels.has(key)) continue;
-
-    seenLabels.add(key);
-    normalized.push({ value, label });
-  }
-
-  return normalized.length > 0 ? normalized : DEFAULT_SORT_OPTIONS;
-}
-
-function normalizePositionFilters(raw: string[] | undefined | null): DraftPositionFilter[] {
-  if (!raw || !Array.isArray(raw)) return DEFAULT_POSITION_FILTERS;
-  const allowed = new Set(DEFAULT_POSITION_FILTERS);
-  const normalized = raw.filter((position): position is DraftPositionFilter =>
-    allowed.has(position as DraftPositionFilter)
-  );
-  return normalized.length > 0 ? normalized : DEFAULT_POSITION_FILTERS;
-}
-
 function resolveDraftSlotPosition(player: DraftPlayer): DraftPosition {
   return (player.positions[0] ?? "UTIL") as DraftPosition;
+}
+
+// 공개 선수 목록과 인증 값 목록을 playerId 기준으로 머지
+function mergePlayersWithValues(
+  publicPlayers: DraftPlayerPublic[],
+  values: DraftPlayerValue[] | null
+): DraftPlayer[] {
+  if (!values) return publicPlayers.map((player) => ({ ...player }));
+
+  const valueById = new Map(values.map((v) => [v.playerId, v]));
+  return publicPlayers.map((player) => {
+    const v = valueById.get(player.id);
+    return v
+      ? { ...player, ppaValue: v.ppaValue, recommendedBid: v.recommendedBid }
+      : { ...player };
+  });
 }
 
 export default function DraftPage() {
@@ -208,17 +180,20 @@ export default function DraftPage() {
   const [config, setConfig] = useState<DraftConfigResponse>(() => toInitialConfig(localConfig));
   const [teams, setTeams] = useState<DraftTeam[]>([]);       // All teams in the draft room
   const [picks, setPicks] = useState<DraftPick[]>([]);       // All draft picks made so far
-  const [allPlayers, setAllPlayers] = useState<DraftPlayer[]>([]); // Full list from server
+  // 공개 API 에서 받아온 기본 목록 (값 없음)
+  const [publicPlayers, setPublicPlayers] = useState<DraftPlayerPublic[]>([]);
+  // 인증 API 에서 받아온 값 테이블 (playerId → { ppaValue, recommendedBid })
+  // 비로그인 또는 조회 실패 시 null
+  const [playerValues, setPlayerValues] = useState<DraftPlayerValue[] | null>(null);
 
   const [query, setQuery] = useState(() => searchParams.get("query")?.trim() ?? "");
   const [position, setPosition] = useState<DraftPositionFilter>("ALL");
   const [sort, setSort] = useState<DraftSort>("score_desc");
   const [page, setPage] = useState(1);
 
-  const [positionFilters, setPositionFilters] =
-    useState<DraftPositionFilter[]>(DEFAULT_POSITION_FILTERS);
-  const [sortOptions, setSortOptions] =
-    useState<{ value: DraftSort; label: string }[]>(DEFAULT_SORT_OPTIONS);
+  // 필터/정렬 옵션은 더 이상 서버가 내려주지 않음 — 상수 그대로 사용
+  const positionFilters = DEFAULT_POSITION_FILTERS;
+  const sortOptions = DEFAULT_SORT_OPTIONS;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -241,6 +216,12 @@ export default function DraftPage() {
     [localConfig.rosterPlayers, config.rosterPlayers]
   );
   const slotTemplate = useMemo(() => buildSlotTemplate(rosterSlots), [rosterSlots]);
+
+  // 공개 선수 목록 + 인증 값 목록을 playerId 로 머지한 최종 UI 목록
+  const allPlayers = useMemo<DraftPlayer[]>(
+    () => mergePlayersWithValues(publicPlayers, playerValues),
+    [publicPlayers, playerValues]
+  );
 
   // Client-side filter + sort + paginate (server returns full list).
   const filteredPlayers = useMemo(() => {
@@ -348,12 +329,21 @@ export default function DraftPage() {
     setTakenTarget(null);
   };
 
-  // Bootstrap: fetch initial draft room data (config, teams, picks, filter options).
-  // Runs once on mount using the config saved in localStorage.
+  // Bootstrap: 인증 필요. config / teams / picks 세 가지만 받음.
+  // 로그인 상태가 아니면 아예 호출하지 않음 (토큰 없으면 apiGetAuth 가 즉시 throw).
   useEffect(() => {
+    if (!authed) {
+      // setState 를 effect body 에서 바로 호출하면 cascading render 가 발생하므로 마이크로태스크로 지연.
+      queueMicrotask(() => {
+        setTeams([]);
+        setPicks([]);
+      });
+      return;
+    }
+
     const controller = new AbortController();
 
-    apiGet<DraftBootstrapResponse>(
+    apiGetAuth<DraftBootstrapResponse>(
       "/api/draft/bootstrap",
       {
         leagueType: localConfig.leagueType,
@@ -362,28 +352,14 @@ export default function DraftPage() {
         myTeamName: localConfig.myTeamName,
         oppTeamNames: localConfig.oppTeamNames?.join(",") || "",
         opponentsCount: localConfig.opponentsCount,
-        userId: DRAFT_ROOM_ID,
       },
       controller.signal
     )
       .then((data) => {
         if (controller.signal.aborted) return;
-
         setConfig(data.config);
         setTeams(data.teams);
         setPicks(data.picks);
-
-        const nextPositions = normalizePositionFilters(data.positionFilters);
-        setPositionFilters(nextPositions);
-        setPosition((prev) => (nextPositions.includes(prev) ? prev : nextPositions[0]));
-
-        const nextSortOptions = normalizeSortOptions(data.sortOptions);
-        setSortOptions(nextSortOptions);
-        setSort((prev) =>
-          nextSortOptions.some((option) => option.value === prev)
-            ? prev
-            : nextSortOptions[0]?.value ?? "score_desc"
-        );
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -392,9 +368,9 @@ export default function DraftPage() {
       });
 
     return () => controller.abort();
-  }, [localConfig]);
+  }, [authed, localConfig]);
 
-  // Fetch full player list once; filtering/sorting/pagination is handled client-side below.
+  // 공개 선수 목록 — 한 번만 호출. 검색/필터/정렬/페이지네이션은 아래 useMemo 에서 처리.
   useEffect(() => {
     const controller = new AbortController();
     queueMicrotask(() => {
@@ -402,15 +378,15 @@ export default function DraftPage() {
       setError(null);
     });
 
-    apiGet<DraftPlayersResponse>("/api/draft/players", {}, controller.signal)
+    apiGet<DraftPlayersResponse>("/api/draft/players", undefined, controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
-        setAllPlayers(data.items ?? []);
+        setPublicPlayers(data.items ?? []);
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         console.error(err);
-        setAllPlayers([]);
+        setPublicPlayers([]);
         setError(err instanceof Error ? err.message : "Unknown error");
       })
       .finally(() => {
@@ -421,6 +397,34 @@ export default function DraftPage() {
 
     return () => controller.abort();
   }, []);
+
+  // 인증된 사용자에게만 PPA 값 + 추천 bid 를 불러와 playerId 로 공개 목록과 머지한다.
+  // 로그아웃 시 값을 즉시 지워서 UI 에 남지 않도록 함.
+  useEffect(() => {
+    if (!authed) {
+      queueMicrotask(() => setPlayerValues(null));
+      return;
+    }
+
+    const controller = new AbortController();
+
+    apiGetAuth<DraftPlayerValuesResponse>(
+      "/api/draft/players/values",
+      undefined,
+      controller.signal
+    )
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setPlayerValues(data.items ?? []);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error(err);
+        setPlayerValues(null);
+      });
+
+    return () => controller.abort();
+  }, [authed]);
 
   // Toggle player selection for A/B comparison (max 2 players).
   const handleCompareToggle = (playerId: string) => {
@@ -482,7 +486,7 @@ export default function DraftPage() {
 
   // Remove a draft pick via DELETE API and update local state.
   const handleRemovePick = (pick: DraftPick) => {
-    void apiDelete<DraftPicksResponse>(`/api/draft/picks/${pick.playerId}`, { userId: DRAFT_ROOM_ID })
+    void apiDeleteAuth<DraftPicksResponse>(`/api/draft/picks/${pick.playerId}`)
       .then((data) => setPicks(data.items))
       .catch((err: unknown) => {
         console.error(err);
@@ -502,10 +506,10 @@ export default function DraftPage() {
       type: "mine",
     };
 
-    void apiPost<DraftPicksResponse, DraftPickUpsertIn>(
+    void apiPostAuth<DraftPicksResponse, DraftPickUpsertIn>(
       "/api/draft/picks",
       payload,
-      { userId: DRAFT_ROOM_ID, rosterPlayers: rosterSlots }
+      { rosterPlayers: rosterSlots }
     )
       .then((data) => {
         setPicks(data.items);
@@ -530,10 +534,10 @@ export default function DraftPage() {
       type: "taken",
     };
 
-    void apiPost<DraftPicksResponse, DraftPickUpsertIn>(
+    void apiPostAuth<DraftPicksResponse, DraftPickUpsertIn>(
       "/api/draft/picks",
       payload,
-      { userId: DRAFT_ROOM_ID, rosterPlayers: rosterSlots }
+      { rosterPlayers: rosterSlots }
     )
       .then((data) => {
         setPicks(data.items);
@@ -676,7 +680,7 @@ export default function DraftPage() {
                         </button>
                       </div>
                       <div className="mt-1 text-[11px] font-semibold text-white/70">
-                        {selectedA.positions.join("/")} - {selectedA.team} - ${selectedA.recommendedBid}
+                        {selectedA.positions.join("/")} - {selectedA.team} - ${selectedA.recommendedBid ?? "—"}
                       </div>
                       <div className="mt-1 text-[10px] text-white/55">
                         AVG {formatAvg(selectedA.avg)} | HR {selectedA.hr ?? "-"} | RBI {selectedA.rbi ?? "-"} | SB {selectedA.sb ?? "-"}
@@ -708,7 +712,7 @@ export default function DraftPage() {
                         </button>
                       </div>
                       <div className="mt-1 text-[11px] font-semibold text-white/70">
-                        {selectedB.positions.join("/")} - {selectedB.team} - ${selectedB.recommendedBid}
+                        {selectedB.positions.join("/")} - {selectedB.team} - ${selectedB.recommendedBid ?? "—"}
                       </div>
                       <div className="mt-1 text-[10px] text-white/55">
                         AVG {formatAvg(selectedB.avg)} | HR {selectedB.hr ?? "-"} | RBI {selectedB.rbi ?? "-"} | SB {selectedB.sb ?? "-"}
@@ -811,7 +815,7 @@ export default function DraftPage() {
                       </span>
                     </div>
 
-                    <div className={draftCostClass(authed)}>${player.recommendedBid}</div>
+                    <div className={draftCostClass(authed)}>${player.recommendedBid ?? "—"}</div>
 
                     <div>
                       <span

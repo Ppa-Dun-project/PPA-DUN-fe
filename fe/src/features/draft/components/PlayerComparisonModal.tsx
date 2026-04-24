@@ -56,14 +56,14 @@ const METRICS: MetricDef[] = [
   {
     key: "ppa",
     label: "PPA-DUN Value",
-    getValue: (player) => player.ppaValue,
+    getValue: (player) => player.ppaValue ?? null,
     formatValue: (value) => (value === null ? "-" : value.toFixed(1)),
     deltaDigits: 1,
   },
   {
     key: "cost",
     label: "Draft Cost",
-    getValue: (player) => player.recommendedBid,
+    getValue: (player) => player.recommendedBid ?? null,
     formatValue: (value) => (value === null ? "-" : `$${Math.round(value)}`),
     deltaDigits: 0,
   },
@@ -117,21 +117,25 @@ function normalizedWidth(value: number | null, other: number | null) {
   return Math.max(10, ratio);
 }
 
+// ppaValue / recommendedBid 가 반드시 유효한 숫자로 존재함을 보장하는 좁힌 타입.
+// 인증된 사용자에게만 해당 값이 제공되므로, AI 추천 호출 전에 가드가 필수.
+type DraftPlayerWithValues = DraftPlayer & { ppaValue: number; recommendedBid: number };
+
 function valuePerDollar(player: DraftPlayer) {
-  if (!Number.isFinite(player.recommendedBid) || player.recommendedBid <= 0) return null;
-  return player.ppaValue / player.recommendedBid;
+  const ppa = player.ppaValue;
+  const bid = player.recommendedBid;
+  if (typeof bid !== "number" || !Number.isFinite(bid) || bid <= 0) return null;
+  if (typeof ppa !== "number" || !Number.isFinite(ppa)) return null;
+  return ppa / bid;
 }
 
-// Validate a player has numeric ppaValue and positive recommendedBid,
-// required for meaningful AI analysis.
-function hasValidAiInputs(player: DraftPlayer): boolean {
+// 타입 프레디케이트 — true 인 경우 호출부에서 player 가 DraftPlayerWithValues 로 좁혀진다.
+function hasValidAiInputs(player: DraftPlayer): player is DraftPlayerWithValues {
   const ppa = player.ppaValue;
   const bid = player.recommendedBid;
   return (
-    Number.isFinite(ppa) &&
-    ppa > 0 &&
-    Number.isFinite(bid) &&
-    bid > 0
+    typeof ppa === "number" && Number.isFinite(ppa) && ppa > 0 &&
+    typeof bid === "number" && Number.isFinite(bid) && bid > 0
   );
 }
 
@@ -149,7 +153,7 @@ type AiRecommendResponse = {
   recommendation: string;
 };
 
-function toAiPayload(player: DraftPlayer) {
+function toAiPayload(player: DraftPlayerWithValues) {
   return {
     name: player.name,
     ppaValue: player.ppaValue,
@@ -191,6 +195,8 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
   const fetchRecommendation = useCallback(
     (signal?: AbortSignal) => {
       if (!playerA || !playerB || !aiInputsValid) return;
+      // aiInputsValid 는 memo 라서 TS 가 좁혀주지 못함 — 인라인 가드로 재확인해 타입을 좁힘.
+      if (!hasValidAiInputs(playerA) || !hasValidAiInputs(playerB)) return;
 
       setAiLoading(true);
       setAiError(null);
@@ -329,7 +335,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
                   <div className="mt-1 text-sm font-semibold text-rose-100">
                     {playerA.team} - {playerA.positions.join("/")}
                   </div>
-                  <div className="mt-2 text-sm font-bold text-emerald-300">Draft Cost ${playerA.recommendedBid}</div>
+                  <div className="mt-2 text-sm font-bold text-emerald-300">Draft Cost ${playerA.recommendedBid ?? "—"}</div>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-[10px] font-black uppercase tracking-widest text-white/60">PPA-DUN</div>
@@ -363,7 +369,7 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
                   <div className="mt-1 text-sm font-semibold text-sky-100">
                     {playerB.team} - {playerB.positions.join("/")}
                   </div>
-                  <div className="mt-2 text-sm font-bold text-emerald-300">Draft Cost ${playerB.recommendedBid}</div>
+                  <div className="mt-2 text-sm font-bold text-emerald-300">Draft Cost ${playerB.recommendedBid ?? "—"}</div>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-[10px] font-black uppercase tracking-widest text-white/60">PPA-DUN</div>

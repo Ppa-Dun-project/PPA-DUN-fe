@@ -77,6 +77,15 @@ export function useAuth(): boolean {
 }
 
 /**
+ * getAccessToken: localStorage에서 JWT 토큰을 꺼내 반환
+ * - 토큰이 없으면 null (비로그인 상태)
+ * - api.ts의 Authorization 헤더 조립에 사용
+ */
+export function getAccessToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+/**
  * login: 로그인 — 토큰을 저장하고 모든 구독자에게 알림
  */
 export function login(token: string): void {
