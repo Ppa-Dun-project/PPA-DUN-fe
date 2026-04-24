@@ -13,10 +13,17 @@ export function formatPpa(value: number | null | undefined): string {
  * - 비로그인: 블러 + 흐린 색 (유료 정보 마스킹)
  * - 10점 이상: 에메랄드 발광 효과 (하이라이트)
  * - 그 외: 기본 에메랄드
+ *
+ * value 는 number | null | undefined 를 모두 허용 — 인증 전/값 조회 실패 시에도 안전.
  */
-export function ppaValueClass(value: number, opts?: { authed?: boolean }): string {
+export function ppaValueClass(
+  value: number | null | undefined,
+  opts?: { authed?: boolean }
+): string {
   const authed = opts?.authed ?? true;
   if (!authed) return "blur-sm select-none text-emerald-400/60";
-  if (value >= 10) return "text-emerald-300 drop-shadow-[0_0_12px_rgba(16,185,129,0.55)]";
+  if (typeof value === "number" && value >= 10) {
+    return "text-emerald-300 drop-shadow-[0_0_12px_rgba(16,185,129,0.55)]";
+  }
   return "text-emerald-400";
 }
