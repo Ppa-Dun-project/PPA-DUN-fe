@@ -18,6 +18,7 @@ type PlayerDetailResponse = {
   throws: string;
   team: string;
   positions: string[];
+  valueScore: number;
   headshotUrl?: string | null;
   stats: {
     g: number;
@@ -26,12 +27,6 @@ type PlayerDetailResponse = {
     ops: number;
     ip: number;
   };
-};
-
-type PlayerValueResponse = {
-  playerId: number;
-  name: string;
-  valueScore: number;
 };
 
 const HITTER_POSITIONS = new Set([
@@ -80,7 +75,6 @@ export default function PlayerInfoModal({ open, playerId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<PlayerDetailResponse | null>(null);
-  const [valueScore, setValueScore] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -91,6 +85,7 @@ export default function PlayerInfoModal({ open, playerId, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
+  // 상세 API 단일 호출 — 응답에 valueScore 가 이미 포함되어 있으므로 별도 /value 호출은 불필요.
   useEffect(() => {
     if (!open || playerId === null) return;
 
@@ -100,38 +95,14 @@ export default function PlayerInfoModal({ open, playerId, onClose }: Props) {
       setError(null);
     });
 
-    Promise.allSettled([
-      apiGet<PlayerDetailResponse>(`/api/players/${playerId}`, undefined, controller.signal),
-      apiGet<PlayerValueResponse>(`/api/players/${playerId}/value`, undefined, controller.signal),
-    ])
-      .then((results) => {
+    apiGet<PlayerDetailResponse>(`/api/players/${playerId}`, undefined, controller.signal)
+      .then((data) => {
         if (controller.signal.aborted) return;
-
-        const detailResult = results[0];
-        const valueResult = results[1];
-
-        if (detailResult.status === "fulfilled") {
-          setDetail(detailResult.value);
-        } else {
-          setDetail(null);
-          setError(
-            detailResult.reason instanceof Error
-              ? detailResult.reason.message
-              : "Failed to load player detail"
-          );
-          return;
-        }
-
-        if (valueResult.status === "fulfilled") {
-          setValueScore(valueResult.value.valueScore);
-        } else {
-          setValueScore(null);
-        }
+        setDetail(data);
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setDetail(null);
-        setValueScore(null);
         setError(err instanceof Error ? err.message : "Failed to load player information");
       })
       .finally(() => {
@@ -201,7 +172,7 @@ export default function PlayerInfoModal({ open, playerId, onClose }: Props) {
               <div className="rounded-2xl border border-white/20 bg-black/20 px-5 py-3 text-center">
                 <div className="text-[11px] font-black uppercase tracking-wide text-white/60">PPA-DUN Value</div>
                 <div className="mt-1 text-3xl font-black text-emerald-300">
-                  {formatPpa(valueScore)}
+                  {formatPpa(detail.valueScore)}
                 </div>
               </div>
             </div>
