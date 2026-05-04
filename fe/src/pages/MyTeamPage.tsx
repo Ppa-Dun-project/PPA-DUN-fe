@@ -1,12 +1,16 @@
 // 내 팀 페이지 (로그인 필수)
-// - 백엔드에서 드래프트한 선수 목록 + 예산 정보를 받아옴
+// - 드래프트 세션 단위로 동작: GET /api/my-team/players?sessionId=<id>
+// - 진입 시 GET /api/draft/sessions 로 사용자 세션 목록을 조회 →
+//   URL ?sessionId 가 있고 소유 세션이면 그 값, 없으면 가장 최근 세션을 default 로 사용
 // - 필터/정렬/검색은 전부 프론트에서 처리 (백엔드는 원시 데이터만 제공)
 import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import FadeIn from "../components/ui/FadeIn";
 import Skeleton from "../components/ui/Skeleton";
 import Dropdown from "../components/ui/Dropdown";
 
 import type { MyTeamPlayer, MyTeamPosFilter, MyTeamSort } from "../types/myteam";
+import type { SessionSummary } from "../types/draft";
 import {
   filterMyTeam,
   formatAvg,
@@ -23,6 +27,11 @@ type MyTeamPlayersResponse = {
   totalBudget: number;
   spentBudget: number;
   remainingBudget: number;
+};
+
+// 백엔드 GET /api/draft/sessions 응답 타입
+type SessionsListResponse = {
+  items: SessionSummary[];
 };
 
 // 예산 정보를 하나의 객체로 묶음 (useState 3번 → 1번)
@@ -51,8 +60,19 @@ const TABLE_GRID_COLS =
   "grid-cols-[1.8fr_.6fr_.6fr_.7fr_.7fr_.7fr_.7fr_.7fr_.9fr]";
 
 export default function MyTeamPage() {
-  // 로딩/에러 상태 (초기값 loading=true: 마운트 직후 API 호출 중)
-  const [loading, setLoading] = useState(true);
+  // URL ?sessionId — 소스 오브 트루스. 새로고침/공유 후에도 같은 세션을 보여주기 위함.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSessionIdRaw = searchParams.get("sessionId");
+
+  // 세션 목록 로드 상태 (sessions === null = 아직 미조회)
+  const [sessions, setSessions] = useState<SessionSummary[] | null>(null);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+
+  // 현재 보고 있는 세션 ID (sessions 로드 완료 후 결정됨)
+  const [sessionId, setSessionId] = useState<number | null>(null);
+
+  // 선수 데이터 로딩/에러 상태
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 백엔드에서 받아온 선수 목록 + 예산 정보
@@ -67,13 +87,67 @@ export default function MyTeamPage() {
   // 선수 정보 모달 상태 (선택된 선수 ID)
   const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
 
-  // 마운트 시 한 번만 백엔드에서 내 팀 데이터 로드
+  // ── 1단계: 세션 목록 조회 + sessionId 결정 ──
+  // - URL ?sessionId 가 사용자 소유 세션 중 하나면 그 값을 사용 (새로고침/공유 케이스)
+  // - 아니면 last_opened_at DESC 기준 첫 번째 세션을 default 로 사용
+  // - 0개면 sessionId 는 null 로 두고 빈 상태 UI 표시
   useEffect(() => {
     const controller = new AbortController();
 
+    apiGetAuth<SessionsListResponse>(
+      "/api/draft/sessions",
+      undefined,
+      controller.signal
+    )
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        const items = data.items ?? [];
+        setSessions(items);
+
+        if (items.length === 0) {
+          setSessionId(null);
+          return;
+        }
+
+        const urlIdNum = urlSessionIdRaw ? Number(urlSessionIdRaw) : NaN;
+        const urlIsValid =
+          Number.isFinite(urlIdNum) && items.some((s) => s.id === urlIdNum);
+        const resolvedId = urlIsValid ? urlIdNum : items[0].id;
+        setSessionId(resolvedId);
+
+        // URL 동기화 (잘못된/비어있는 sessionId → 가장 최근 세션으로 교체)
+        if (!urlIsValid || urlIdNum !== resolvedId) {
+          const next = new URLSearchParams(searchParams);
+          next.set("sessionId", String(resolvedId));
+          setSearchParams(next, { replace: true });
+        }
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error(err);
+        setSessions([]);
+        setSessionsError(
+          err instanceof Error ? err.message : "Failed to load draft sessions"
+        );
+      });
+
+    return () => controller.abort();
+    // 마운트 시 한 번만 — URL/searchParams 가 바뀌어도 재조회하지 않음
+    // (URL 변경은 setSearchParams 로 우리가 직접 만든 결과)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── 2단계: sessionId 가 결정되면 해당 세션의 My Team 데이터 로드 ──
+  useEffect(() => {
+    if (sessionId === null) return;
+
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+
     apiGetAuth<MyTeamPlayersResponse>(
       "/api/my-team/players",
-      undefined,
+      { sessionId },
       controller.signal
     )
       .then((data) => {
@@ -96,7 +170,17 @@ export default function MyTeamPage() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [sessionId]);
+
+  // 현재 보고 있는 세션의 메타 정보 (제목 옆에 이름 표시용)
+  const activeSession = useMemo(
+    () => sessions?.find((s) => s.id === sessionId) ?? null,
+    [sessions, sessionId]
+  );
+
+  // 세션 0개 빈 상태 (sessions 로드 완료 + length === 0)
+  const noSessions = sessions !== null && sessions.length === 0;
+  const sessionsLoading = sessions === null && sessionsError === null;
 
   // 클라이언트 측 필터링 + 정렬 (백엔드 재호출 없이 메모리에서 계산)
   const visiblePlayers = useMemo(
@@ -112,6 +196,11 @@ export default function MyTeamPage() {
           <div>
             <div className="text-sm font-black text-white/70">PPA-DUN</div>
             <h1 className="mt-1 text-3xl font-black text-white">My Team</h1>
+            {activeSession && (
+              <div className="mt-1 text-sm font-semibold text-white/60">
+                Session: <span className="text-white/85">{activeSession.name}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-6 py-4">
@@ -124,7 +213,35 @@ export default function MyTeamPage() {
         </div>
       </FadeIn>
 
+      {/* 세션 0개일 때: 안내 카드만 보여주고 본문 테이블은 렌더하지 않음 */}
+      {noSessions && (
+        <FadeIn delayMs={60}>
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
+            <h2 className="text-lg font-black text-white">드래프트 세션이 없습니다</h2>
+            <p className="mt-2 text-sm font-semibold text-white/70">
+              My Team을 보려면 먼저 드래프트 세션을 생성하세요.
+            </p>
+            <Link
+              to="/draft"
+              className="mt-4 inline-block rounded-2xl bg-emerald-500 px-5 py-2 text-sm font-black text-black transition hover:bg-emerald-400"
+            >
+              Go to Draft
+            </Link>
+          </section>
+        </FadeIn>
+      )}
+
+      {/* 세션 목록 조회 자체가 실패 */}
+      {sessionsError && (
+        <FadeIn delayMs={60}>
+          <section className="rounded-3xl border border-red-500/30 bg-red-500/5 p-6 text-sm text-red-200">
+            Failed to load draft sessions: {sessionsError}
+          </section>
+        </FadeIn>
+      )}
+
       {/* 본문: 검색/정렬/포지션 필터 + 선수 목록 테이블 */}
+      {!noSessions && !sessionsError && (
       <FadeIn delayMs={60} className="relative z-40">
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
           {/* 검색창 + 정렬 드롭다운 */}
@@ -183,21 +300,21 @@ export default function MyTeamPage() {
 
             {/* 테이블 본문: 로딩/에러/빈 상태/정상 4가지 분기 */}
             <div className="bg-black/20">
-              {loading && (
+              {(sessionsLoading || loading) && (
                 <div className="p-4">
                   <Skeleton className="h-24" />
                 </div>
               )}
 
-              {!loading && error && (
+              {!sessionsLoading && !loading && error && (
                 <div className="p-4 text-sm text-red-200">Failed to load my team: {error}</div>
               )}
 
-              {!loading && !error && visiblePlayers.length === 0 && (
+              {!sessionsLoading && !loading && !error && visiblePlayers.length === 0 && (
                 <div className="p-4 text-sm text-white/70">No players found.</div>
               )}
 
-              {!loading && !error && visiblePlayers.map((player) => (
+              {!sessionsLoading && !loading && !error && visiblePlayers.map((player) => (
                 <div
                   key={player.id}
                   className={`grid w-full ${TABLE_GRID_COLS} items-center px-4 py-3 text-left text-sm text-white/85 transition hover:bg-white/5`}
@@ -246,6 +363,7 @@ export default function MyTeamPage() {
           </div>
         </section>
       </FadeIn>
+      )}
 
       {/* 선수 정보 모달 */}
       <PlayerInfoModal
