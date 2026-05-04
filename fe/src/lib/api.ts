@@ -170,6 +170,26 @@ export function apiPostAuth<TResponse, TBody>(
 }
 
 /**
+ * 인증이 필요한 PUT 요청 — 기존 리소스 부분/전체 갱신
+ */
+export function apiPutAuth<TResponse, TBody>(
+  path: string,
+  body: TBody,
+  params?: Record<string, QueryValue>,
+  signal?: AbortSignal
+) {
+  return requestJson<TResponse>(buildUrl(path, params), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+}
+
+/**
  * 인증이 필요한 DELETE 요청
  */
 export function apiDeleteAuth<T>(

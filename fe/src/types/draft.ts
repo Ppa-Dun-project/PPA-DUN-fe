@@ -75,6 +75,41 @@ export type DraftConfigLocal = {
 };
 
 /**
+ * DraftConfigServer: 백엔드 세션 응답에 들어 있는 config 형태
+ * - DraftConfigLocal 과 달리 모든 필드가 필수 (서버가 정규화한 값)
+ */
+export type DraftConfigServer = {
+  leagueType: string;
+  budget: number;
+  rosterPlayers: number;
+  myTeamName: string;
+  opponentsCount: number;
+  oppTeamNames: string[];
+};
+
+/**
+ * SessionSummary: GET /api/draft/sessions 의 각 항목 (Import 모달용)
+ */
+export interface SessionSummary {
+  id: number;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  lastOpenedAt: string;
+}
+
+/**
+ * SessionDetail: 단일 세션의 전체 데이터 (GET/POST/PUT 응답)
+ */
+export interface SessionDetail {
+  id: number;
+  name: string;
+  config: DraftConfigServer;
+  teams: DraftTeam[];
+  picks: DraftPick[];
+}
+
+/**
  * DraftSort: 드래프트 페이지의 정렬 옵션
  * - _desc: 내림차순 (높은 것부터)
  * - _asc: 오름차순
