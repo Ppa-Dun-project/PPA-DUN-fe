@@ -8,6 +8,7 @@ import FadeIn from "../components/ui/FadeIn";          // 페이드 인 애니�
 import NewsCard from "../features/home/NewsCard";      // 뉴스 카드 컴포넌트
 import DraftSetupCard from "../features/home/DraftSetupCard"; // 드래프트 설정 카드 (로그인 시)
 import SignInCard from "../features/home/SignInCard";        // 로그인 유도 카드 (비로그인 시)
+import InjuredPlayersStrip from "../features/home/InjuredPlayersStrip"; // 부상 선수 strip + popup
 import type { NewsItem } from "../types/home";
 
 const MLB_RSS_URL = "https://sports.yahoo.com/mlb/rss/";
@@ -186,6 +187,11 @@ export default function HomePage() {
           {authed ? <DraftSetupCard /> : <SignInCard />}
         </FadeIn>
       </div>
+
+      {/* 부상 선수 섹션 — Latest News의 sibling 위치 (그리드 아래 full width) */}
+      <FadeIn delayMs={180}>
+        <InjuredPlayersStrip />
+      </FadeIn>
     </div>
   );
 }

@@ -13,6 +13,20 @@ export type NewsItem = {
 };
 
 /**
+ * InjuredPlayer: HomePage Injured Players strip + popup에서 사용
+ * 백엔드 GET /api/players/injured 응답 형태와 1:1 매칭
+ */
+export type InjuredPlayer = {
+  player_id: number;       // MLB stable ID — headshot URL에 사용
+  name: string;
+  position?: string;       // OF / 3B / SP ...
+  team?: string;           // NYY / LAA ...
+  primary_number?: string; // jersey number (#)
+  injury_status: string;   // Day-To-Day / 10-Day IL / Out ...
+  player_value?: number;   // 0~100 fantasy value (정렬에만 사용)
+};
+
+/**
  * TopPlayer: 상위 선수 정보 (현재 사용되지 않지만 타입 정의만 유지)
  */
 export type TopPlayer = {
