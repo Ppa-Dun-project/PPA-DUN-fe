@@ -150,8 +150,8 @@ export default function HomePage() {
       {/* 뉴스 + 사이드 카드 2열 그리드 */}
       {/* grid-cols-1: 기본 1열 / lg:grid-cols-3: 큰 화면에서 3열 */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* 뉴스 섹션 (3열 중 2열 차지) */}
-        <FadeIn className="lg:col-span-2" delayMs={60}>
+        {/* 뉴스 + 부상자 섹션 (3열 중 2열 차지, 세로 stack) */}
+        <FadeIn className="space-y-6 lg:col-span-2" delayMs={60}>
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
             <div className="flex items-end justify-between gap-3">
               <div>
@@ -179,6 +179,9 @@ export default function HomePage() {
               ))}
             </div>
           </section>
+
+          {/* 부상 선수 섹션 — News 바로 아래, 같은 col-span-2 안 (오른쪽 사이드 카드와 나란히) */}
+          <InjuredPlayersStrip />
         </FadeIn>
 
         {/* 사이드 카드 (3열 중 1열) */}
@@ -187,11 +190,6 @@ export default function HomePage() {
           {authed ? <DraftSetupCard /> : <SignInCard />}
         </FadeIn>
       </div>
-
-      {/* 부상 선수 섹션 — Latest News의 sibling 위치 (그리드 아래 full width) */}
-      <FadeIn delayMs={180}>
-        <InjuredPlayersStrip />
-      </FadeIn>
     </div>
   );
 }
