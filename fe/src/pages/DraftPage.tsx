@@ -532,7 +532,7 @@ export default function DraftPage() {
     );
     const slotIndex = findAvailableSlotIndex(rosterSlots, occupied);
     if (slotIndex === -1) {
-      alert("자리가 없습니다");
+      alert("No roster slot available");
       return false;
     }
 
@@ -571,7 +571,7 @@ export default function DraftPage() {
   const handleSaveConfirm = () => {
     const name = saveNameInput.trim();
     if (!name) {
-      setSaveError("이름을 입력해주세요");
+      setSaveError("Please enter a name");
       return;
     }
     if (!config) return;
@@ -590,7 +590,7 @@ export default function DraftPage() {
         })
         .catch((err: unknown) => {
           console.error(err);
-          setSaveError(err instanceof Error ? err.message : "저장에 실패했습니다");
+          setSaveError(err instanceof Error ? err.message : "Save failed");
         })
         .finally(() => setSaving(false));
       return;
@@ -614,9 +614,9 @@ export default function DraftPage() {
         setSaving(false);
         const msg = err instanceof Error ? err.message : "";
         if (msg.includes("Maximum 3 sessions")) {
-          alert("세션은 최대 3개까지만 만들 수 있어요. 기존 세션을 삭제한 뒤 다시 시도해주세요.");
+          alert("You can save up to 3 sessions. Please delete an existing session and try again.");
         } else {
-          setSaveError(msg || "저장에 실패했습니다");
+          setSaveError(msg || "Save failed");
         }
       });
   };
@@ -651,7 +651,7 @@ export default function DraftPage() {
   };
 
   const handleSessionDelete = (id: number) => {
-    if (!confirm("이 세션을 삭제할까요?")) return;
+    if (!confirm("Delete this session?")) return;
     apiDeleteAuth<{ status: string; sessionId: number }>(`/api/draft/sessions/${id}`)
       .then(() => {
         // 현재 활성 세션 삭제 시 홈으로 리다이렉트
@@ -664,7 +664,7 @@ export default function DraftPage() {
       })
       .catch((err: unknown) => {
         console.error(err);
-        alert("삭제에 실패했습니다");
+        alert("Delete failed");
       });
   };
 
@@ -1108,7 +1108,7 @@ export default function DraftPage() {
               {isLoadedMode ? "Save Changes" : "Save Draft"}
             </div>
             <div className="mt-1 text-xs text-white/55">
-              세션 이름을 입력하세요 (최대 3개까지 저장 가능)
+              Enter a session name (up to 3 saved sessions)
             </div>
 
             <input
@@ -1118,7 +1118,7 @@ export default function DraftPage() {
                 setSaveNameInput(e.target.value);
                 if (saveError) setSaveError(null);
               }}
-              placeholder="예: 2026 Black Sluggers"
+              placeholder="e.g. 2026 Black Sluggers"
               className="mt-4 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-white/40 focus:border-white/25"
               autoFocus
             />
@@ -1134,7 +1134,7 @@ export default function DraftPage() {
                 disabled={saving}
                 className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white/80 transition hover:bg-white/10 disabled:opacity-50"
               >
-                취소
+                Cancel
               </button>
               <button
                 type="button"
@@ -1142,7 +1142,7 @@ export default function DraftPage() {
                 disabled={saving}
                 className="flex-1 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-400 disabled:opacity-50"
               >
-                {saving ? "저장 중..." : "저장"}
+                {saving ? "Saving..." : "Save"}
               </button>
             </div>
           </div>
@@ -1176,7 +1176,7 @@ export default function DraftPage() {
               )}
 
               {!sessionListLoading && sessionList.length === 0 && (
-                <div className="p-4 text-sm text-white/65">저장된 세션이 없습니다.</div>
+                <div className="p-4 text-sm text-white/65">No saved sessions yet.</div>
               )}
 
               {!sessionListLoading &&

@@ -217,9 +217,9 @@ export default function MyTeamPage() {
       {noSessions && (
         <FadeIn delayMs={60}>
           <section className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-            <h2 className="text-lg font-black text-white">드래프트 세션이 없습니다</h2>
+            <h2 className="text-lg font-black text-white">No draft sessions yet</h2>
             <p className="mt-2 text-sm font-semibold text-white/70">
-              My Team을 보려면 먼저 드래프트 세션을 생성하세요.
+              Create a draft session to see your team here.
             </p>
             <Link
               to="/draft"
