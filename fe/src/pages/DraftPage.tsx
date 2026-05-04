@@ -304,14 +304,8 @@ export default function DraftPage() {
     return calculateCurrentRound(teams.length, rosterSlots, picks);
   }, [teams.length, rosterSlots, picks]);
 
-  const selectedA = useMemo(
-    () => players.find((player) => player.id === compareAId) ?? null,
-    [players, compareAId]
-  );
-  const selectedB = useMemo(
-    () => players.find((player) => player.id === compareBId) ?? null,
-    [players, compareBId]
-  );
+  const selectedA = players.find((player) => player.id === compareAId) ?? null;
+  const selectedB = players.find((player) => player.id === compareBId) ?? null;
 
   const openAddModal = (player: DraftPlayer) => {
     setAddTarget(player);
