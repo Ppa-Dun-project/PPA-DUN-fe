@@ -15,14 +15,12 @@ import InjuredPlayerCard from "./InjuredPlayerCard";
  * - 한 번만 fetch해서 두 곳 다 사용 (popup 클릭 시 추가 호출 없음)
  */
 
-const ENDPOINT = "/api/players/injured";
-
 export default function InjuredPlayersStrip() {
   const [players, setPlayers] = useState<InjuredPlayer[]>([]);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    fetch(ENDPOINT)
+    fetch("/api/home/injured")
       .then((r) => r.json())
       .then((data: InjuredPlayer[]) => setPlayers(Array.isArray(data) ? data : []))
       .catch(() => setPlayers([]));
