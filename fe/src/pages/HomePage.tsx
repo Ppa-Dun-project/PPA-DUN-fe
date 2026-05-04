@@ -20,7 +20,15 @@ type Rss2JsonItem = {
   pubDate: string;
   description?: string;
   thumbnail?: string;
+  content?: string;        // HTML body — 첫 <img> 태그에서 썸네일 URL 추출에 사용
 };
+
+// rss2json content HTML에서 첫 번째 <img> 태그의 src 속성을 뽑는다.
+// Yahoo Sports feed는 thumbnail 필드는 비어있지만 content 안에 이미지를 포함.
+// 70% 정도의 항목에 이미지가 있고, 없는 항목은 undefined → 카드가 텍스트만 렌더.
+const IMG_SRC_RE = /<img[^>]+src="([^"]+)"/i;
+const extractImageUrl = (html: string | undefined): string | undefined =>
+  html ? html.match(IMG_SRC_RE)?.[1] : undefined;
 
 // 히어로 배너 배경 이미지
 import baseballImg from "../assets/Baseball.jpg";
@@ -54,6 +62,7 @@ export default function HomePage() {
             publishedAt: it.pubDate,
             url: it.link,
             source: "Yahoo Sports",
+            imageUrl: extractImageUrl(it.content),
           }));
           setNews(items);
         })

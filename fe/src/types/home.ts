@@ -9,6 +9,7 @@ export type NewsItem = {
   publishedAt: string;     // 발행 시간 (ISO 문자열)
   url?: string;            // 원문 링크 (선택)
   source?: string;         // 출처 (선택, 예: "MLB.com")
+  imageUrl?: string;       // 썸네일 이미지 URL (선택, 없으면 텍스트만 표시)
 };
 
 /**
