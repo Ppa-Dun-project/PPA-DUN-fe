@@ -1,7 +1,5 @@
 import type { DraftConfigLocal, DraftPick, DraftTeam } from "../../types/draft";
 
-const DRAFT_CONFIG_KEY = "ppadun_draft_config";
-
 export const DEFAULT_CONFIG = {
   myTeamName: "My Team",
   oppTeamNames: [] as string[],
@@ -11,13 +9,15 @@ export const DEFAULT_CONFIG = {
   rosterPlayers: 12,
 } satisfies DraftConfigLocal;
 
-const ROSTER_SLOT_TEMPLATE = [
+// 옵션 A: 픽 추가 시 클라이언트가 즉시 slotIndex/slotPos 결정.
+// 슬롯 인덱스 → 포지션 매핑은 백엔드와 동일한 베이스 템플릿을 그대로 사용.
+export const SLOT_TEMPLATE_BASE = [
   "SP", "SP", "RP", "SP", "RP",
   "C", "1B", "2B", "3B", "SS",
   "OF", "OF", "OF", "UTIL", "UTIL",
   "BENCH", "BENCH", "BENCH", "BENCH", "BENCH",
   "BENCH", "BENCH", "BENCH", "BENCH", "BENCH",
-];
+] as const;
 
 const TEAM_PALETTE = [
   { header: "border-rose-400/30 bg-rose-500/10 text-rose-200", slot: "border-rose-400/20 bg-rose-500/8", text: "text-rose-200" },
@@ -51,27 +51,6 @@ const MLB_TEAM_CLASSES: Record<string, string> = {
   SEA: "bg-teal-500/15 text-teal-200 border-teal-400/25",
 };
 
-/** Read draft config from localStorage; fall back to defaults on missing/invalid data. */
-export function readDraftConfig(): DraftConfigLocal {
-  try {
-    const raw = localStorage.getItem(DRAFT_CONFIG_KEY);
-    if (!raw) return { ...DEFAULT_CONFIG };
-
-    const parsed = JSON.parse(raw) as DraftConfigLocal;
-    return {
-      myTeamName: parsed.myTeamName || DEFAULT_CONFIG.myTeamName,
-      oppTeamNames: parsed.oppTeamNames ?? DEFAULT_CONFIG.oppTeamNames,
-      opponentsCount: parsed.opponentsCount ?? DEFAULT_CONFIG.opponentsCount,
-      leagueType: parsed.leagueType || DEFAULT_CONFIG.leagueType,
-      budget: parsed.budget ?? DEFAULT_CONFIG.budget,
-      rosterPlayers: parsed.rosterPlayers ?? DEFAULT_CONFIG.rosterPlayers,
-      createdAt: parsed.createdAt,
-    };
-  } catch {
-    return { ...DEFAULT_CONFIG };
-  }
-}
-
 /** Enforce roster size bounds: 1 ≤ n ≤ 25. */
 export function clampRosterSize(n?: number) {
   return Math.min(Math.max(n ?? 12, 1), 25);
@@ -79,7 +58,7 @@ export function clampRosterSize(n?: number) {
 
 /** Build roster slot layout for the given number of players. */
 export function buildSlotTemplate(count: number): string[] {
-  return ROSTER_SLOT_TEMPLATE.slice(0, count);
+  return SLOT_TEMPLATE_BASE.slice(0, count) as unknown as string[];
 }
 
 /** Team color classes for the draft board. My team uses sky palette; others rotate. */
@@ -103,31 +82,16 @@ export function draftCostClass(authed: boolean) {
   return authed ? "text-white/80" : "blur-sm select-none text-white/50";
 }
 
-/** Find first open slot: exact position → UTIL → BENCH. Returns -1 if full. */
-export function findAvailableSlotIndex(
-  teamId: string,
-  desiredPos: string,
-  slotTemplate: string[],
-  picks: DraftPick[]
-) {
-  const occupied = new Set(
-    picks.filter((p) => p.draftedByTeamId === teamId).map((p) => p.slotIndex)
-  );
-
-  const findBy = (pred: (slot: string) => boolean) => {
-    for (let i = 0; i < slotTemplate.length; i += 1) {
-      if (!occupied.has(i) && pred(slotTemplate[i])) return i;
-    }
-    return -1;
-  };
-
-  const exact = findBy((s) => s === desiredPos);
-  if (exact !== -1) return exact;
-
-  const util = findBy((s) => s === "UTIL");
-  if (util !== -1) return util;
-
-  return findBy((s) => s === "BENCH");
+/**
+ * rosterPlayers 만큼 자른 SLOT_TEMPLATE_BASE 에서 occupied 슬롯을 제외한 첫 빈 자리 인덱스.
+ * 전부 차 있으면 -1 반환.
+ */
+export function findAvailableSlotIndex(rosterPlayers: number, occupied: Set<number>): number {
+  const limit = Math.min(rosterPlayers, SLOT_TEMPLATE_BASE.length);
+  for (let i = 0; i < limit; i += 1) {
+    if (!occupied.has(i)) return i;
+  }
+  return -1;
 }
 
 /** Remaining budget for a team after subtracting all their bids. */

@@ -115,17 +115,20 @@ export default function DraftSetupCard() {
   };
 
   const onStartDraft = () => {
-    const draftConfig = {
-      myTeamName: myTeam.trim(),
+    // 옵션 A: 서버에 즉시 세션을 만들지 않는다. 폼 값을 ppadun_unsaved_draft 에 저장하고 /draft 로 이동.
+    const config = {
+      myTeamName: myTeam.trim() || "My Team",
       opponentsCount,
       oppTeamNames: oppTeamNames.map((name, i) => name.trim() || `Opponent ${i + 1}`),
       leagueType,
       budget: computed.budget,
       rosterPlayers: computed.players,
-      createdAt: new Date().toISOString(),
     };
 
-    localStorage.setItem("ppadun_draft_config", JSON.stringify(draftConfig));
+    localStorage.setItem(
+      "ppadun_unsaved_draft",
+      JSON.stringify({ config, picks: [] })
+    );
 
     const target = "/draft";
     if (!authed) {
