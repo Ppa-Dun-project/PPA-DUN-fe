@@ -10,7 +10,7 @@ import DraftSetupCard from "../features/home/DraftSetupCard"; // 드래프트 �
 import SignInCard from "../features/home/SignInCard";        // 로그인 유도 카드 (비로그인 시)
 import type { NewsItem } from "../types/home";
 
-const MLB_RSS_URL = "https://www.mlb.com/feeds/news/rss.xml";
+const MLB_RSS_URL = "https://sports.yahoo.com/mlb/rss/";
 const RSS_TO_JSON_API = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(MLB_RSS_URL)}`;
 
 type Rss2JsonItem = {
@@ -20,7 +20,15 @@ type Rss2JsonItem = {
   pubDate: string;
   description?: string;
   thumbnail?: string;
+  content?: string;        // HTML body — 첫 <img> 태그에서 썸네일 URL 추출에 사용
 };
+
+// rss2json content HTML에서 첫 번째 <img> 태그의 src 속성을 뽑는다.
+// Yahoo Sports feed는 thumbnail 필드는 비어있지만 content 안에 이미지를 포함.
+// 70% 정도의 항목에 이미지가 있고, 없는 항목은 undefined → 카드가 텍스트만 렌더.
+const IMG_SRC_RE = /<img[^>]+src="([^"]+)"/i;
+const extractImageUrl = (html: string | undefined): string | undefined =>
+  html ? html.match(IMG_SRC_RE)?.[1] : undefined;
 
 // 히어로 배너 배경 이미지
 import baseballImg from "../assets/Baseball.jpg";
@@ -53,7 +61,8 @@ export default function HomePage() {
             summary: (it.description ?? "").replace(/<[^>]+>/g, "").trim(),
             publishedAt: it.pubDate,
             url: it.link,
-            source: "MLB.com",
+            source: "Yahoo Sports",
+            imageUrl: extractImageUrl(it.content),
           }));
           setNews(items);
         })
@@ -147,12 +156,12 @@ export default function HomePage() {
               <div>
                 <h2 className="text-lg font-bold text-white">Latest News</h2>
                 <p className="mt-1 text-xs text-white/50">
-                  Fetched from MLB.com · refreshes every hour
+                  Fetched from Yahoo Sports · refreshes every hour
                 </p>
               </div>
-              {/* "모두 보기" 버튼 → MLB.com 뉴스 페이지로 외부 이동 */}
+              {/* "모두 보기" 버튼 → Yahoo Sports MLB 뉴스 페이지로 외부 이동 */}
               <a
-                href="https://www.mlb.com/news"
+                href="https://sports.yahoo.com/mlb/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-bold text-white/60 hover:text-white transition"
