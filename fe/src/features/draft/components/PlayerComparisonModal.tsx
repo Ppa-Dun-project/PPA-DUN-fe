@@ -16,11 +16,13 @@ type MetricDef = {
   getValue: (player: DraftPlayer) => number | null;
   formatValue: (value: number | null) => string;
   deltaDigits: number;
+  lowerIsBetter?: boolean;
+  comparable?: boolean;
 };
 
 type Trend = "up" | "down" | "equal" | "na";
 
-const METRICS: MetricDef[] = [
+const BATTER_METRICS: MetricDef[] = [
   {
     key: "avg",
     label: "AVG",
@@ -53,6 +55,49 @@ const METRICS: MetricDef[] = [
     formatValue: (value) => (value === null ? "-" : String(value)),
     deltaDigits: 0,
   },
+];
+
+const PITCHER_METRICS: MetricDef[] = [
+  {
+    key: "era",
+    label: "ERA",
+    getValue: (player) => player.era ?? null,
+    formatValue: (value) => (value === null ? "-" : value.toFixed(2)),
+    deltaDigits: 2,
+    lowerIsBetter: true,
+  },
+  {
+    key: "whip",
+    label: "WHIP",
+    getValue: (player) => player.whip ?? null,
+    formatValue: (value) => (value === null ? "-" : value.toFixed(3)),
+    deltaDigits: 3,
+    lowerIsBetter: true,
+  },
+  {
+    key: "ip",
+    label: "IP",
+    getValue: (player) => player.ip ?? null,
+    formatValue: (value) => (value === null ? "-" : value.toFixed(1)),
+    deltaDigits: 1,
+  },
+  {
+    key: "so",
+    label: "SO",
+    getValue: (player) => player.so ?? null,
+    formatValue: (value) => (value === null ? "-" : String(value)),
+    deltaDigits: 0,
+  },
+  {
+    key: "sv",
+    label: "SV",
+    getValue: (player) => player.sv ?? null,
+    formatValue: (value) => (value === null ? "-" : String(value)),
+    deltaDigits: 0,
+  },
+];
+
+const VALUE_METRICS: MetricDef[] = [
   {
     key: "ppa",
     label: "PPA-DUN Value",
@@ -69,10 +114,22 @@ const METRICS: MetricDef[] = [
   },
 ];
 
-function getTrend(value: number | null, opposite: number | null): Trend {
+function isPitcher(player: DraftPlayer) {
+  return player.playerType === "pitcher";
+}
+
+function metricsFor(playerA: DraftPlayer, playerB: DraftPlayer): MetricDef[] {
+  const aPitcher = isPitcher(playerA);
+  const bPitcher = isPitcher(playerB);
+  if (aPitcher && bPitcher) return [...PITCHER_METRICS, ...VALUE_METRICS];
+  if (!aPitcher && !bPitcher) return [...BATTER_METRICS, ...VALUE_METRICS];
+  return VALUE_METRICS;
+}
+
+function getTrend(value: number | null, opposite: number | null, lowerIsBetter = false): Trend {
   if (value === null || opposite === null) return "na";
-  if (value > opposite) return "up";
-  if (value < opposite) return "down";
+  if (value > opposite) return lowerIsBetter ? "down" : "up";
+  if (value < opposite) return lowerIsBetter ? "up" : "down";
   return "equal";
 }
 
@@ -142,9 +199,12 @@ function hasValidAiInputs(player: DraftPlayer): player is DraftPlayerWithValues 
 type AiRecommendRequest = {
   playerA: {
     name: string;
+    playerType: "batter" | "pitcher" | "two_way";
+    team: string;
+    positions: string[];
     ppaValue: number;
     recommendedBid: number;
-    stats: { avg: number | null; hr: number | null; rbi: number | null; sb: number | null };
+    stats: Record<string, number | null>;
   };
   playerB: AiRecommendRequest["playerA"];
 };
@@ -153,17 +213,31 @@ type AiRecommendResponse = {
   recommendation: string;
 };
 
-function toAiPayload(player: DraftPlayerWithValues) {
+function toAiPayload(player: DraftPlayerWithValues): AiRecommendRequest["playerA"] {
+  const stats: Record<string, number | null> = isPitcher(player)
+    ? {
+        era: player.era ?? null,
+        whip: player.whip ?? null,
+        ip: player.ip ?? null,
+        so: player.so ?? null,
+        sv: player.sv ?? null,
+        w: player.w ?? null,
+      }
+    : {
+        avg: player.avg ?? null,
+        hr: player.hr ?? null,
+        rbi: player.rbi ?? null,
+        sb: player.sb ?? null,
+      };
+
   return {
     name: player.name,
+    playerType: player.playerType,
+    team: player.team,
+    positions: player.positions,
     ppaValue: player.ppaValue,
     recommendedBid: player.recommendedBid,
-    stats: {
-      avg: player.avg ?? null,
-      hr: player.hr ?? null,
-      rbi: player.rbi ?? null,
-      sb: player.sb ?? null,
-    },
+    stats,
   };
 }
 
@@ -248,9 +322,10 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
   const rows = useMemo(() => {
     if (!playerA || !playerB) return [];
 
-    return METRICS.map((metric) => {
+    return metricsFor(playerA, playerB).map((metric) => {
       const valueA = metric.getValue(playerA);
       const valueB = metric.getValue(playerB);
+      const comparable = metric.comparable ?? true;
       return {
         key: metric.key,
         label: metric.label,
@@ -258,12 +333,12 @@ export default function PlayerComparisonModal({ open, playerA, playerB, onClose 
         valueB,
         displayA: metric.formatValue(valueA),
         displayB: metric.formatValue(valueB),
-        deltaA: formatSignedDelta(valueA, valueB, metric.deltaDigits),
-        deltaB: formatSignedDelta(valueB, valueA, metric.deltaDigits),
-        trendA: getTrend(valueA, valueB),
-        trendB: getTrend(valueB, valueA),
-        barA: normalizedWidth(valueA, valueB),
-        barB: normalizedWidth(valueB, valueA),
+        deltaA: comparable ? formatSignedDelta(valueA, valueB, metric.deltaDigits) : "N/A",
+        deltaB: comparable ? formatSignedDelta(valueB, valueA, metric.deltaDigits) : "N/A",
+        trendA: comparable ? getTrend(valueA, valueB, metric.lowerIsBetter) : "na",
+        trendB: comparable ? getTrend(valueB, valueA, metric.lowerIsBetter) : "na",
+        barA: comparable ? normalizedWidth(valueA, valueB) : 100,
+        barB: comparable ? normalizedWidth(valueB, valueA) : 100,
       };
     });
   }, [playerA, playerB]);

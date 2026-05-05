@@ -1,5 +1,25 @@
 import type { MyTeamPlayer, MyTeamPosFilter, MyTeamSort } from "../../types/myteam";
 
+function isPitcher(player: MyTeamPlayer) {
+  return player.playerType === "pitcher";
+}
+
+function rateSortValue(player: MyTeamPlayer) {
+  return isPitcher(player) ? (player.era == null ? 0 : -player.era) : player.avg;
+}
+
+function powerSortValue(player: MyTeamPlayer) {
+  return isPitcher(player) ? player.so ?? 0 : player.hr;
+}
+
+function productionSortValue(player: MyTeamPlayer) {
+  return isPitcher(player) ? player.w ?? 0 : player.rbi;
+}
+
+function speedSortValue(player: MyTeamPlayer) {
+  return isPitcher(player) ? player.sv ?? 0 : player.sb;
+}
+
 /**
  * 선수 목록 필터링
  * - 이름/팀명 검색 (대소문자 무시)
@@ -36,13 +56,13 @@ export function sortMyTeam(players: MyTeamPlayer[], sort: MyTeamSort): MyTeamPla
     case "cost_asc":
       return copy.sort((a, b) => a.cost - b.cost);
     case "avg_desc":
-      return copy.sort((a, b) => b.avg - a.avg);
+      return copy.sort((a, b) => rateSortValue(b) - rateSortValue(a));
     case "hr_desc":
-      return copy.sort((a, b) => b.hr - a.hr);
+      return copy.sort((a, b) => powerSortValue(b) - powerSortValue(a));
     case "rbi_desc":
-      return copy.sort((a, b) => b.rbi - a.rbi);
+      return copy.sort((a, b) => productionSortValue(b) - productionSortValue(a));
     case "sb_desc":
-      return copy.sort((a, b) => b.sb - a.sb);
+      return copy.sort((a, b) => speedSortValue(b) - speedSortValue(a));
     default:
       return copy;
   }
