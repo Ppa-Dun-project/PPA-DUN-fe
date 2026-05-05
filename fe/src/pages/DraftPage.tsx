@@ -97,6 +97,10 @@ function isPitcherOnly(player: DraftPlayerPublic): boolean {
   return player.playerType === "pitcher";
 }
 
+function isPitcherPositionFilter(filter: DraftPositionFilter): boolean {
+  return filter === "P" || filter === "SP" || filter === "RP";
+}
+
 function formatNumber(value: number | null | undefined, digits: number) {
   if (value === null || value === undefined) return "-";
   return value.toFixed(digits);
@@ -128,13 +132,22 @@ function speedSortValue(player: DraftPlayerPublic) {
   return isPitcherOnly(player) ? player.sv ?? 0 : player.sb ?? 0;
 }
 
-const DEFAULT_SORT_OPTIONS: { value: DraftSort; label: string }[] = [
+const BATTER_SORT_OPTIONS: { value: DraftSort; label: string }[] = [
   { value: "score_desc", label: "By Score" },
   { value: "cost_desc", label: "By Draft Cost" },
-  { value: "avg_desc", label: "By AVG/ERA" },
-  { value: "hr_desc", label: "By HR/SO" },
-  { value: "rbi_desc", label: "By RBI/W" },
-  { value: "sb_desc", label: "By SB/SV" },
+  { value: "avg_desc", label: "By AVG" },
+  { value: "hr_desc", label: "By HR" },
+  { value: "rbi_desc", label: "By RBI" },
+  { value: "sb_desc", label: "By SB" },
+];
+
+const PITCHER_SORT_OPTIONS: { value: DraftSort; label: string }[] = [
+  { value: "score_desc", label: "By Score" },
+  { value: "cost_desc", label: "By Draft Cost" },
+  { value: "avg_desc", label: "By ERA" },
+  { value: "hr_desc", label: "By SO" },
+  { value: "rbi_desc", label: "By W" },
+  { value: "sb_desc", label: "By SV" },
 ];
 
 // 공개 /api/draft/players — PPA 값 / 추천 bid 없이 전체 선수 목록만
@@ -228,7 +241,11 @@ export default function DraftPage() {
 
   // 필터/정렬 옵션은 더 이상 서버가 내려주지 않음 — 상수 그대로 사용
   const positionFilters = DEFAULT_POSITION_FILTERS;
-  const sortOptions = DEFAULT_SORT_OPTIONS;
+  const showingPitcherColumns = isPitcherPositionFilter(position);
+  const sortOptions = showingPitcherColumns ? PITCHER_SORT_OPTIONS : BATTER_SORT_OPTIONS;
+  const statColumnLabels = showingPitcherColumns
+    ? ["ERA", "SO", "W", "SV"]
+    : ["AVG", "HR", "RBI", "SB"];
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -944,10 +961,10 @@ export default function DraftPage() {
             <div>Pos</div>
             <div>Draft Cost</div>
             <div>Team</div>
-            <div>AVG/ERA</div>
-            <div>HR/SO</div>
-            <div>RBI/W</div>
-            <div>SB/SV</div>
+            <div>{statColumnLabels[0]}</div>
+            <div>{statColumnLabels[1]}</div>
+            <div>{statColumnLabels[2]}</div>
+            <div>{statColumnLabels[3]}</div>
             <div>PPA-DUN Value</div>
             <div>Action</div>
             <div>Compare</div>
