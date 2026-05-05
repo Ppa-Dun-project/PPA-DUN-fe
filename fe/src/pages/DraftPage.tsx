@@ -93,13 +93,48 @@ function matchesPositionFilter(
   return normalized.includes(filter);
 }
 
+function isPitcherOnly(player: DraftPlayerPublic): boolean {
+  return player.playerType === "pitcher";
+}
+
+function formatNumber(value: number | null | undefined, digits: number) {
+  if (value === null || value === undefined) return "-";
+  return value.toFixed(digits);
+}
+
+function formatDraftStatSummary(player: DraftPlayerPublic) {
+  if (isPitcherOnly(player)) {
+    return `ERA ${formatNumber(player.era, 2)} | SO ${player.so ?? "-"} | W ${player.w ?? "-"} | SV ${player.sv ?? "-"}`;
+  }
+  return `AVG ${formatAvg(player.avg)} | HR ${player.hr ?? "-"} | RBI ${player.rbi ?? "-"} | SB ${player.sb ?? "-"}`;
+}
+
+function primaryRateSortValue(player: DraftPlayerPublic) {
+  if (isPitcherOnly(player)) {
+    return player.era === null || player.era === undefined ? 0 : -player.era;
+  }
+  return player.avg ?? 0;
+}
+
+function powerSortValue(player: DraftPlayerPublic) {
+  return isPitcherOnly(player) ? player.so ?? 0 : player.hr ?? 0;
+}
+
+function productionSortValue(player: DraftPlayerPublic) {
+  return isPitcherOnly(player) ? player.w ?? 0 : player.rbi ?? 0;
+}
+
+function speedSortValue(player: DraftPlayerPublic) {
+  return isPitcherOnly(player) ? player.sv ?? 0 : player.sb ?? 0;
+}
+
 const DEFAULT_SORT_OPTIONS: { value: DraftSort; label: string }[] = [
   { value: "score_desc", label: "By Score" },
   { value: "cost_desc", label: "By Draft Cost" },
-  { value: "avg_desc", label: "By AVG" },
-  { value: "hr_desc", label: "By HR" },
-  { value: "rbi_desc", label: "By RBI" },
-  { value: "sb_desc", label: "By SB" },
+  { value: "avg_desc", label: "By AVG/ERA" },
+  { value: "hr_desc", label: "By HR/SO" },
+  { value: "rbi_desc", label: "By RBI/W" },
+  { value: "sb_desc", label: "By SB/SV" },
 ];
 
 // 공개 /api/draft/players — PPA 값 / 추천 bid 없이 전체 선수 목록만
@@ -203,6 +238,7 @@ export default function DraftPage() {
   const [compareBId, setCompareBId] = useState<string | null>(null);
   const [comparisonOpen, setComparisonOpen] = useState(false);
   const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
+  const [profilePlayerType, setProfilePlayerType] = useState<"batter" | "pitcher">("batter");
 
   const [addTarget, setAddTarget] = useState<DraftPlayer | null>(null);
   const [takenTarget, setTakenTarget] = useState<DraftPlayer | null>(null);
@@ -246,13 +282,13 @@ export default function DraftPage() {
         case "cost_desc":
           return (b.recommendedBid ?? 0) - (a.recommendedBid ?? 0);
         case "avg_desc":
-          return (b.avg ?? 0) - (a.avg ?? 0);
+          return primaryRateSortValue(b) - primaryRateSortValue(a);
         case "hr_desc":
-          return (b.hr ?? 0) - (a.hr ?? 0);
+          return powerSortValue(b) - powerSortValue(a);
         case "rbi_desc":
-          return (b.rbi ?? 0) - (a.rbi ?? 0);
+          return productionSortValue(b) - productionSortValue(a);
         case "sb_desc":
-          return (b.sb ?? 0) - (a.sb ?? 0);
+          return speedSortValue(b) - speedSortValue(a);
         case "score_desc":
         default:
           return (b.ppaValue ?? 0) - (a.ppaValue ?? 0);
@@ -499,13 +535,14 @@ export default function DraftPage() {
     setComparisonOpen(false);
   };
 
-  const openPlayerInfo = (rawPlayerId: string) => {
+  const openPlayerInfo = (rawPlayerId: string, playerType: "batter" | "pitcher" | "two_way") => {
     const parsed = Number(rawPlayerId);
     if (!Number.isFinite(parsed)) {
       setError("Invalid player id");
       return;
     }
     setProfilePlayerId(parsed);
+    setProfilePlayerType(playerType === "pitcher" ? "pitcher" : "batter");
   };
 
   const closePlayerInfo = () => {
@@ -834,7 +871,7 @@ export default function DraftPage() {
                         {selectedA.positions.join("/")} - {selectedA.team} - ${selectedA.recommendedBid ?? "—"}
                       </div>
                       <div className="mt-1 text-[10px] text-white/55">
-                        AVG {formatAvg(selectedA.avg)} | HR {selectedA.hr ?? "-"} | RBI {selectedA.rbi ?? "-"} | SB {selectedA.sb ?? "-"}
+                        {formatDraftStatSummary(selectedA)}
                       </div>
                     </>
                   ) : (
@@ -866,7 +903,7 @@ export default function DraftPage() {
                         {selectedB.positions.join("/")} - {selectedB.team} - ${selectedB.recommendedBid ?? "—"}
                       </div>
                       <div className="mt-1 text-[10px] text-white/55">
-                        AVG {formatAvg(selectedB.avg)} | HR {selectedB.hr ?? "-"} | RBI {selectedB.rbi ?? "-"} | SB {selectedB.sb ?? "-"}
+                        {formatDraftStatSummary(selectedB)}
                       </div>
                     </>
                   ) : (
@@ -907,10 +944,10 @@ export default function DraftPage() {
             <div>Pos</div>
             <div>Draft Cost</div>
             <div>Team</div>
-            <div>AVG</div>
-            <div>HR</div>
-            <div>RBI</div>
-            <div>SB</div>
+            <div>AVG/ERA</div>
+            <div>HR/SO</div>
+            <div>RBI/W</div>
+            <div>SB/SV</div>
             <div>PPA-DUN Value</div>
             <div>Action</div>
             <div>Compare</div>
@@ -953,7 +990,7 @@ export default function DraftPage() {
                     <div>
                       <button
                         type="button"
-                        onClick={() => openPlayerInfo(player.id)}
+                        onClick={() => openPlayerInfo(player.id, player.playerType)}
                         className="rounded-md border border-transparent px-2 py-1 -mx-2 -my-1 font-semibold text-white transition hover:border-white/35 hover:bg-white/5 hover:text-amber-200 focus-visible:border-white/45 focus-visible:bg-white/10 focus-visible:outline-none"
                       >
                         {player.name}
@@ -979,10 +1016,18 @@ export default function DraftPage() {
                       </span>
                     </div>
 
-                    <div className="text-white/70">{formatAvg(player.avg)}</div>
-                    <div className="font-semibold text-amber-300">{player.hr ?? "-"}</div>
-                    <div className="text-white/70">{player.rbi ?? "-"}</div>
-                    <div className="font-semibold text-amber-300">{player.sb ?? "-"}</div>
+                    <div className="text-white/70">
+                      {isPitcherOnly(player) ? formatNumber(player.era, 2) : formatAvg(player.avg)}
+                    </div>
+                    <div className="font-semibold text-amber-300">
+                      {isPitcherOnly(player) ? player.so ?? "-" : player.hr ?? "-"}
+                    </div>
+                    <div className="text-white/70">
+                      {isPitcherOnly(player) ? player.w ?? "-" : player.rbi ?? "-"}
+                    </div>
+                    <div className="font-semibold text-amber-300">
+                      {isPitcherOnly(player) ? player.sv ?? "-" : player.sb ?? "-"}
+                    </div>
 
                     <div className={`font-black ${ppaValueClass(player.ppaValue, { authed })}`}>
                       {formatPpa(player.ppaValue)}
@@ -1092,6 +1137,7 @@ export default function DraftPage() {
       <PlayerInfoModal
         open={profilePlayerId !== null}
         playerId={profilePlayerId}
+        playerType={profilePlayerType}
         onClose={closePlayerInfo}
       />
 

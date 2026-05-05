@@ -5,12 +5,19 @@
 export type DraftPlayerPublic = {
   id: string;
   name: string;
+  playerType: "batter" | "pitcher" | "two_way";
   team: string;                  // MLB 팀 약어 (예: "NYY")
   positions: string[];           // 포지션 배열 (예: ["OF", "DH"])
   avg: number | null;            // 타율
   hr: number | null;             // 홈런
   rbi: number | null;            // 타점
   sb: number | null;             // 도루
+  w: number | null;
+  sv: number | null;
+  so: number | null;
+  era: number | null;
+  whip: number | null;
+  ip: number | null;
 };
 
 /**

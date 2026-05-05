@@ -49,15 +49,24 @@ const POSITION_FILTERS: MyTeamPosFilter[] = [
 const SORT_OPTIONS: { value: MyTeamSort; label: string }[] = [
   { value: "score_desc", label: "By Score" },
   { value: "cost_desc", label: "By Value $" },
-  { value: "avg_desc", label: "By AVG" },
-  { value: "hr_desc", label: "By HR" },
-  { value: "rbi_desc", label: "By RBI" },
-  { value: "sb_desc", label: "By SB" },
+  { value: "avg_desc", label: "By AVG/ERA" },
+  { value: "hr_desc", label: "By HR/SO" },
+  { value: "rbi_desc", label: "By RBI/W" },
+  { value: "sb_desc", label: "By SB/SV" },
 ];
 
 // 테이블 컬럼 그리드 정의 (헤더와 각 행에서 공유)
 const TABLE_GRID_COLS =
   "grid-cols-[1.8fr_.6fr_.6fr_.7fr_.7fr_.7fr_.7fr_.7fr_.9fr]";
+
+function isPitcher(player: MyTeamPlayer) {
+  return player.playerType === "pitcher";
+}
+
+function formatNumber(value: number | null | undefined, digits: number) {
+  if (value === null || value === undefined) return "-";
+  return value.toFixed(digits);
+}
 
 export default function MyTeamPage() {
   // URL ?sessionId — 소스 오브 트루스. 새로고침/공유 후에도 같은 세션을 보여주기 위함.
@@ -86,6 +95,7 @@ export default function MyTeamPage() {
 
   // 선수 정보 모달 상태 (선택된 선수 ID)
   const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
+  const [profilePlayerType, setProfilePlayerType] = useState<"batter" | "pitcher">("batter");
 
   // ── 1단계: 세션 목록 조회 + sessionId 결정 ──
   // - URL ?sessionId 가 사용자 소유 세션 중 하나면 그 값을 사용 (새로고침/공유 케이스)
@@ -291,10 +301,10 @@ export default function MyTeamPage() {
               <div>Pos</div>
               <div>$</div>
               <div>Team</div>
-              <div>AVG</div>
-              <div>HR</div>
-              <div>RBI</div>
-              <div>SB</div>
+              <div>AVG/ERA</div>
+              <div>HR/SO</div>
+              <div>RBI/W</div>
+              <div>SB/SV</div>
               <div className="text-right">PPA-DUN Value</div>
             </div>
 
@@ -323,7 +333,10 @@ export default function MyTeamPage() {
                   <div>
                     <button
                       type="button"
-                      onClick={() => setProfilePlayerId(Number(player.id))}
+                      onClick={() => {
+                        setProfilePlayerId(Number(player.id));
+                        setProfilePlayerType(player.playerType);
+                      }}
                       className="rounded-md border border-transparent px-2 py-1 -mx-2 -my-1 font-semibold text-white transition hover:border-white/35 hover:bg-white/5 hover:text-amber-200 focus-visible:border-white/45 focus-visible:bg-white/10 focus-visible:outline-none"
                     >
                       {player.name}
@@ -348,10 +361,18 @@ export default function MyTeamPage() {
                   </div>
 
                   {/* 스탯 */}
-                  <div className="text-white/70">{formatAvg(player.avg)}</div>
-                  <div className="font-semibold text-amber-300">{player.hr ?? "-"}</div>
-                  <div className="text-white/70">{player.rbi ?? "-"}</div>
-                  <div className="font-semibold text-amber-300">{player.sb ?? "-"}</div>
+                  <div className="text-white/70">
+                    {isPitcher(player) ? formatNumber(player.era, 2) : formatAvg(player.avg)}
+                  </div>
+                  <div className="font-semibold text-amber-300">
+                    {isPitcher(player) ? player.so ?? "-" : player.hr ?? "-"}
+                  </div>
+                  <div className="text-white/70">
+                    {isPitcher(player) ? player.w ?? "-" : player.rbi ?? "-"}
+                  </div>
+                  <div className="font-semibold text-amber-300">
+                    {isPitcher(player) ? player.sv ?? "-" : player.sb ?? "-"}
+                  </div>
 
                   {/* PPA-DUN 가치 점수 (10점 이상이면 발광 효과) */}
                   <div className={`text-right text-sm font-black ${ppaValueClass(player.ppaValue)}`}>
@@ -369,6 +390,7 @@ export default function MyTeamPage() {
       <PlayerInfoModal
         open={profilePlayerId !== null}
         playerId={profilePlayerId}
+        playerType={profilePlayerType}
         onClose={() => setProfilePlayerId(null)}
       />
     </div>
