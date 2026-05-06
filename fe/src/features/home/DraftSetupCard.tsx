@@ -130,11 +130,7 @@ export default function DraftSetupCard() {
       JSON.stringify({ config, picks: [] })
     );
 
-    const target = "/draft";
-    if (!authed) {
-      navigate(`/login?redirect=${encodeURIComponent(target)}`, { replace: true });
-      return;
-    }
+    const target = "/draft?setup=1";
     navigate(target);
   };
 
@@ -304,7 +300,7 @@ export default function DraftSetupCard() {
 
         {!authed && (
           <div className="text-center text-xs text-white/50">
-            Guests can view this, but starting a draft requires login.
+            Guests can enter the draft board. Sign in to save, compare, and make picks.
           </div>
         )}
       </div>

@@ -26,8 +26,8 @@ export type DraftPlayerPublic = {
  */
 export type DraftPlayerValue = {
   playerId: string;
-  ppaValue: number;              // PPA-DUN 가치 점수
-  recommendedBid: number;        // 추천 드래프트 비용
+  ppaValue: number | null;       // PPA-DUN 가치 점수
+  recommendedBid: number | null; // 추천 드래프트 비용
 };
 
 /**
@@ -36,8 +36,8 @@ export type DraftPlayerValue = {
  * - 표시 시점에 formatPpa() / ?? 등으로 방어 필요
  */
 export type DraftPlayer = DraftPlayerPublic & {
-  ppaValue?: number;
-  recommendedBid?: number;
+  ppaValue?: number | null;
+  recommendedBid?: number | null;
 };
 
 /**

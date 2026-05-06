@@ -167,6 +167,15 @@ type SessionsListResponse = {
 
 const UNSAVED_DRAFT_KEY = "ppadun_unsaved_draft";
 
+const DEFAULT_DRAFT_CONFIG: DraftConfigServer = {
+  leagueType: "standard",
+  budget: 260,
+  rosterPlayers: 12,
+  myTeamName: "My Team",
+  opponentsCount: 11,
+  oppTeamNames: Array.from({ length: 11 }, (_, i) => `Opponent ${i + 1}`),
+};
+
 // 미저장 모드의 localStorage 페이로드 — DraftSetupCard 가 쓰고 DraftPage 가 읽음
 type UnsavedDraft = {
   config: DraftConfigServer;
@@ -177,16 +186,30 @@ type UnsavedDraft = {
 // 저장 시 서버가 자체 ID 로 다시 만들어 주므로 여기 ID 는 클라이언트 임시 키로만 사용.
 function buildTeamsFromConfig(config: DraftConfigServer): DraftTeam[] {
   const teams: DraftTeam[] = [
-    { id: "me", name: config.myTeamName, isMine: true },
+    { id: "team-0", name: config.myTeamName, isMine: true },
   ];
   for (let i = 0; i < config.opponentsCount; i += 1) {
     teams.push({
-      id: `opp${i}`,
+      id: `team-${i + 1}`,
       name: config.oppTeamNames[i] ?? `Opponent ${i + 1}`,
       isMine: false,
     });
   }
   return teams;
+}
+
+function normalizeDraftTeamId(teamId: string) {
+  if (teamId === "me" || teamId === "team-me") return "team-0";
+  const legacyOpponent = /^opp(\d+)$/.exec(teamId);
+  if (legacyOpponent) return `team-${Number(legacyOpponent[1]) + 1}`;
+  return teamId;
+}
+
+function normalizeDraftPicks(picks: DraftPick[]) {
+  return picks.map((pick) => ({
+    ...pick,
+    draftedByTeamId: normalizeDraftTeamId(pick.draftedByTeamId),
+  }));
 }
 
 // 공개 선수 목록과 인증 값 목록을 playerId 기준으로 머지
@@ -212,6 +235,12 @@ function initialNameFor(currentName: string | null): string {
   return currentName;
 }
 
+function newestCreatedSession(sessions: SessionSummary[]) {
+  return [...sessions].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )[0];
+}
+
 export default function DraftPage() {
   const authed = useAuth();
   const navigate = useNavigate();
@@ -220,10 +249,12 @@ export default function DraftPage() {
   const isLoadedMode = sessionId !== null && Number.isFinite(sessionId);
 
   const [searchParams] = useSearchParams();
+  const useStoredDraftConfig = searchParams.get("setup") === "1";
   const draftRoomTopRef = useRef<HTMLDivElement | null>(null); // Scroll target after draft pick
 
   // 핵심 드래프트 state — 마운트 시 한 번 채워지고 이후 모든 픽 변경은 React state 만 갱신.
   const [config, setConfig] = useState<DraftConfigServer | null>(null);
+  const [hasDraftConfig, setHasDraftConfig] = useState(false);
   const [teams, setTeams] = useState<DraftTeam[]>([]);
   const [picks, setPicks] = useState<DraftPick[]>([]);
   const [sessionName, setSessionName] = useState<string | null>(null);
@@ -329,8 +360,8 @@ export default function DraftPage() {
 
   // Quick lookup: playerId → DraftPlayer object.
   const playersById = useMemo<Record<string, DraftPlayer>>(
-    () => Object.fromEntries(players.map((player) => [player.id, player])),
-    [players]
+    () => Object.fromEntries(allPlayers.map((player) => [player.id, player])),
+    [allPlayers]
   );
 
   const myTeam = teams.find((team) => team.isMine) ?? teams[0] ?? null;
@@ -397,8 +428,9 @@ export default function DraftPage() {
         .then((data) => {
           if (controller.signal.aborted) return;
           setConfig(data.config);
+          setHasDraftConfig(true);
           setTeams(data.teams);
-          setPicks(data.picks);
+          setPicks(normalizeDraftPicks(data.picks ?? []));
           setSessionName(data.name);
           setBootstrapped(true);
         })
@@ -412,33 +444,72 @@ export default function DraftPage() {
       return () => controller.abort();
     }
 
-    // 미저장 모드 — localStorage 읽기
+    if (authed && !useStoredDraftConfig) {
+      const controller = new AbortController();
+      apiGetAuth<SessionsListResponse>(
+        "/api/draft/sessions",
+        undefined,
+        controller.signal
+      )
+        .then((data) => {
+          if (controller.signal.aborted) return;
+          const latestSession = newestCreatedSession(data.items ?? []);
+          if (latestSession) {
+            navigate(`/draft/${latestSession.id}`, { replace: true });
+            return;
+          }
+
+          const ready: UnsavedDraft = { config: DEFAULT_DRAFT_CONFIG, picks: [] };
+          setConfig(ready.config);
+          setHasDraftConfig(false);
+          setTeams(buildTeamsFromConfig(ready.config));
+          setPicks([]);
+          setSessionName(null);
+          setBootstrapped(true);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          console.error(err);
+          const ready: UnsavedDraft = { config: DEFAULT_DRAFT_CONFIG, picks: [] };
+          setConfig(ready.config);
+          setHasDraftConfig(false);
+          setTeams(buildTeamsFromConfig(ready.config));
+          setPicks([]);
+          setSessionName(null);
+          setBootstrapped(true);
+        });
+
+      return () => controller.abort();
+    }
+
+    // 미저장 모드 — Draft Setup에서 온 경우에만 localStorage 설정을 사용한다.
+    // Navbar/direct URL 진입은 player browser로 취급해 이전 unsaved draft를 자동 복원하지 않는다.
     let parsed: UnsavedDraft | null = null;
-    try {
-      const raw = localStorage.getItem(UNSAVED_DRAFT_KEY);
-      if (raw) parsed = JSON.parse(raw) as UnsavedDraft;
-    } catch {
-      parsed = null;
+    if (useStoredDraftConfig) {
+      try {
+        const raw = localStorage.getItem(UNSAVED_DRAFT_KEY);
+        if (raw) parsed = JSON.parse(raw) as UnsavedDraft;
+      } catch {
+        parsed = null;
+      }
     }
 
-    if (!parsed?.config) {
-      navigate("/", { replace: true });
-      return;
-    }
-
-    const ready = parsed;
+    const ready: UnsavedDraft = parsed?.config
+      ? parsed
+      : { config: DEFAULT_DRAFT_CONFIG, picks: [] };
     queueMicrotask(() => {
       setConfig(ready.config);
+      setHasDraftConfig(Boolean(parsed?.config));
       setTeams(buildTeamsFromConfig(ready.config));
-      setPicks(ready.picks ?? []);
+      setPicks(normalizeDraftPicks(ready.picks ?? []));
       setSessionName(null);
       setBootstrapped(true);
     });
-  }, [isLoadedMode, sessionId, navigate]);
+  }, [authed, isLoadedMode, navigate, sessionId, useStoredDraftConfig]);
 
   // 미저장 모드에서 picks 가 바뀔 때마다 localStorage 에도 sync — 새로고침 보호.
   useEffect(() => {
-    if (isLoadedMode || !bootstrapped || !config) return;
+    if (isLoadedMode || !bootstrapped || !config || !hasDraftConfig) return;
     try {
       localStorage.setItem(
         UNSAVED_DRAFT_KEY,
@@ -447,7 +518,7 @@ export default function DraftPage() {
     } catch {
       // 쿼터 초과 등은 조용히 무시 — 새로고침 보호 실패해도 화면 동작에는 영향 없음.
     }
-  }, [isLoadedMode, bootstrapped, config, picks]);
+  }, [isLoadedMode, bootstrapped, config, hasDraftConfig, picks]);
 
   // 공개 선수 목록 — 한 번만 호출. 검색/필터/정렬/페이지네이션은 아래 useMemo 에서 처리.
   useEffect(() => {
@@ -481,7 +552,7 @@ export default function DraftPage() {
   // 로그아웃 시 값을 즉시 지워서 UI 에 남지 않도록 함.
   // picks/config 가 바뀔 때마다 재호출 — 잔여 예산 변동에 따라 백엔드의 추천 bid 가 갱신되기 때문.
   useEffect(() => {
-    if (!authed || !config) {
+    if (!authed || !config || !hasDraftConfig) {
       queueMicrotask(() => setPlayerValues(null));
       return;
     }
@@ -505,7 +576,7 @@ export default function DraftPage() {
       });
 
     return () => controller.abort();
-  }, [authed, config, picks]);
+  }, [authed, config, hasDraftConfig, picks]);
 
   // Toggle player selection for A/B comparison (max 2 players).
   const handleCompareToggle = (playerId: string) => {
@@ -739,22 +810,30 @@ export default function DraftPage() {
             <h1 className="mt-1 text-3xl font-black text-white">
               {sessionName ?? "Draft Room"}
             </h1>
-            <p className="mt-2 text-sm text-white/60">
-              {String(config.leagueType ?? "standard").toUpperCase()} - ${config.budget} Budget - {rosterSlots} Players
-            </p>
+            {hasDraftConfig ? (
+              <p className="mt-2 text-sm text-white/60">
+                {String(config.leagueType ?? "standard").toUpperCase()} - ${config.budget} Budget - {rosterSlots} Players
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-white/60">
+                Browse players without starting a draft.
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
             {authed && (
               <>
-                <button
-                  type="button"
-                  onClick={openSaveModal}
-                  className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-200 transition hover:bg-emerald-500/20"
-                  title="Save current draft as a session"
-                >
-                  Save
-                </button>
+                {hasDraftConfig && (
+                  <button
+                    type="button"
+                    onClick={openSaveModal}
+                    className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-200 transition hover:bg-emerald-500/20"
+                    title="Save current draft as a session"
+                  >
+                    Save
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={openImportModal}
@@ -766,17 +845,19 @@ export default function DraftPage() {
               </>
             )}
 
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4">
-              <div className="text-xs font-extrabold text-white/60">Remaining Budget</div>
-              <div className="mt-1 text-2xl font-black text-emerald-400">${remainingBudget}</div>
-            </div>
+            {hasDraftConfig && (
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4">
+                <div className="text-xs font-extrabold text-white/60">Remaining Budget</div>
+                <div className="mt-1 text-2xl font-black text-emerald-400">${remainingBudget}</div>
+              </div>
+            )}
           </div>
         </div>
       </FadeIn>
 
       <FadeIn delayMs={60}>
         <div ref={draftRoomTopRef}>
-          {authed ? (
+          {authed && hasDraftConfig ? (
             <DraftRoomBoard
               teams={teams}
               slotTemplate={slotTemplate}
@@ -789,9 +870,15 @@ export default function DraftPage() {
             />
           ) : (
             <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-              <div className="text-lg font-black text-white">Guest View</div>
+              <div className="text-lg font-black text-white">
+                {authed ? "Default View" : "Guest View"}
+              </div>
               <div className="mt-2 text-sm text-white/60">
-                Sign in to use the live draft room board and Add / Taken actions.
+                {authed
+                  ? "No saved draft session yet. Start from Draft Setup to create one."
+                  : hasDraftConfig
+                  ? "Sign in to use the live draft room board and Add / Taken actions."
+                  : "Start from Draft Setup to create a live draft board."}
               </div>
             </section>
           )}
@@ -849,9 +936,11 @@ export default function DraftPage() {
               );
             })}
 
-            <div className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-300">
-              Remaining Budget: ${remainingBudget}
-            </div>
+            {hasDraftConfig && (
+              <div className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-300">
+                Remaining Budget: ${remainingBudget}
+              </div>
+            )}
           </div>
         </section>
       </FadeIn>
